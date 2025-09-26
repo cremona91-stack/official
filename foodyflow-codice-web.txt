@@ -1,0 +1,1994 @@
+{
+  "name": "rest-express",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "NODE_ENV=development tsx server/index.ts",
+    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "start": "NODE_ENV=production node dist/index.js",
+    "check": "tsc",
+    "db:push": "drizzle-kit push"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/ios": "^7.4.3",
+    "@google/genai": "^1.20.0",
+    "@hookform/resolvers": "^3.10.0",
+    "@neondatabase/serverless": "^0.10.4",
+    "@radix-ui/react-accordion": "^1.2.4",
+    "@radix-ui/react-dialog": "^1.1.7",
+    "@radix-ui/react-dropdown-menu": "^2.1.7",
+    "@radix-ui/react-select": "^2.1.7",
+    "@radix-ui/react-tabs": "^1.1.4",
+    "@radix-ui/react-toast": "^1.2.7",
+    "@sendgrid/mail": "^8.1.6",
+    "@tanstack/react-query": "^5.60.5",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.39.1",
+    "drizzle-zod": "^0.7.0",
+    "express": "^4.21.2",
+    "lucide-react": "^0.453.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.55.0",
+    "tailwind-merge": "^2.6.0",
+    "wouter": "^3.3.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.2",
+    "drizzle-kit": "^0.30.4",
+    "tailwindcss": "^3.4.17",
+    "typescript": "5.6.3",
+    "vite": "^5.4.19"
+  }
+}
+
+import { sql } from "drizzle-orm";
+import { pgTable, text, varchar, real, integer, json, timestamp, boolean, uniqueIndex, index, jsonb } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+
+export const recipeIngredientSchema = z.object({
+  productId: z.string(),
+  quantity: z.number().min(0),
+  cost: z.number().min(0),
+});
+
+export const dishIngredientSchema = z.object({
+  productId: z.string(),
+  quantity: z.number().min(0),
+  cost: z.number().min(0),
+});
+
+export const suppliers = pgTable("suppliers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const products = pgTable("products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").notNull().unique(),
+  name: text("name").notNull(),
+  supplierId: varchar("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
+  supplier: text("supplier"),
+  supplierEmail: text("supplier_email"),
+  waste: real("waste").notNull().default(0),
+  notes: text("notes"),
+  quantity: real("quantity").notNull(),
+  unit: varchar("unit").notNull(),
+  pricePerUnit: real("price_per_unit").notNull(),
+  effectivePricePerUnit: real("effective_price_per_unit").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const recipes = pgTable("recipes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  ingredients: json("ingredients").$type<z.infer<typeof recipeIngredientSchema>[]>().notNull(),
+  totalCost: real("total_cost").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const dishes = pgTable("dishes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  ingredients: json("ingredients").$type<z.infer<typeof dishIngredientSchema>[]>().notNull(),
+  totalCost: real("total_cost").notNull(),
+  sellingPrice: real("selling_price").notNull(),
+  netPrice: real("net_price").notNull(),
+  foodCost: real("food_cost").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const waste = pgTable("waste", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  quantity: real("quantity").notNull(),
+  cost: real("cost").notNull(),
+  date: text("date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const sales = pgTable("sales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dishId: varchar("dish_id").notNull().references(() => dishes.id, { onDelete: "cascade" }),
+  dishName: text("dish_name").notNull(),
+  quantitySold: integer("quantity_sold").notNull(),
+  unitCost: real("unit_cost").notNull(),
+  unitRevenue: real("unit_revenue").notNull(),
+  totalCost: real("total_cost").notNull(),
+  totalRevenue: real("total_revenue").notNull(),
+  saleDate: text("sale_date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const budgetEntries = pgTable("budget_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  date: text("date").notNull(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  day: integer("day").notNull(),
+  copertoMedio: real("coperto_medio"),
+  coperti: integer("coperti"),
+  budgetRevenue: real("budget_revenue"),
+  budgetDelivery: real("budget_delivery"),
+  actualRevenue: real("actual_revenue"),
+  actualDelivery: real("actual_delivery"),
+  consuntivo: real("consuntivo"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const economicParameters = pgTable("economic_parameters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  materieFirstePercent: real("materie_prime_percent").default(22.10),
+  acquistiVarPercent: real("acquisti_vari_percent").default(3.00),
+  materieFirsteBudget: real("materie_prime_budget").default(0),
+  acquistiVarBudget: real("acquisti_vari_budget").default(0),
+  locazioniBudget: real("locazioni_budget").default(0),
+  personaleBudget: real("personale_budget").default(0),
+  utenzeBudget: real("utenze_budget").default(0),
+  manutenzionibudget: real("manutenzioni_budget").default(0),
+  noleggibudget: real("noleggi_budget").default(0),
+  prestazioniTerziBudget: real("prestazioni_terzi_budget").default(0),
+  consulenzeBudget: real("consulenze_budget").default(0),
+  marketingBudget: real("marketing_budget").default(0),
+  deliveryBudget: real("delivery_budget").default(0),
+  trasferteBudget: real("trasferte_budget").default(0),
+  assicurazioniBudget: real("assicurazioni_budget").default(0),
+  speseBancarieBudget: real("spese_bancarie_budget").default(0),
+  materieFirsteConsuntivo: real("materie_prime_consuntivo").default(0),
+  acquistiVarConsuntivo: real("acquisti_vari_consuntivo").default(0),
+  locazioniConsuntivo: real("locazioni_consuntivo").default(0),
+  personaleConsuntivo: real("personale_consuntivo").default(0),
+  utenzeConsuntivo: real("utenze_consuntivo").default(0),
+  manutenzioniConsuntivo: real("manutenzioni_consuntivo").default(0),
+  noleggiConsuntivo: real("noleggi_consuntivo").default(0),
+  prestazioniTerziConsuntivo: real("prestazioni_terzi_consuntivo").default(0),
+  consulenzeConsuntivo: real("consulenze_consuntivo").default(0),
+  marketingConsuntivo: real("marketing_consuntivo").default(0),
+  deliveryConsuntivo: real("delivery_consuntivo").default(0),
+  trasferteConsuntivo: real("trasferte_consuntivo").default(0),
+  assicurazioniConsuntivo: real("assicurazioni_consuntivo").default(0),
+  speseBancarieConsuntivo: real("spese_bancarie_consuntivo").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    yearMonthIdx: uniqueIndex("economic_parameters_year_month_idx").on(table.year, table.month),
+  }
+});
+
+export const insertSupplierSchema = createInsertSchema(suppliers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  name: z.string().min(1, "Nome fornitore richiesto"),
+  email: z.string().email().optional().or(z.literal("")),
+  notes: z.string().optional(),
+});
+
+export const insertProductSchema = createInsertSchema(products).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  effectivePricePerUnit: true,
+}).extend({
+  waste: z.number().min(0).max(100).default(0),
+  quantity: z.number().min(0),
+  pricePerUnit: z.number().min(0),
+  unit: z.enum(["kg", "l", "pezzo"]),
+  supplierId: z.string().optional().or(z.literal("")),
+  supplierEmail: z.string().email().optional().or(z.literal("")),
+});
+
+export const insertBudgetEntrySchema = createInsertSchema(budgetEntries, {
+  date: z.string().min(1),
+  year: z.number().min(2020).max(2050),
+  month: z.number().min(1).max(12),
+  day: z.number().min(1).max(31),
+  copertoMedio: z.number().min(0).optional(),
+  coperti: z.number().min(0).optional(),
+  budgetRevenue: z.number().min(0).optional(),
+  budgetDelivery: z.number().min(0).optional(),
+  actualRevenue: z.number().min(0).optional(),
+  actualDelivery: z.number().min(0).optional(),
+  consuntivo: z.number().min(0).optional(),
+  notes: z.string().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type Supplier = typeof suppliers.$inferSelect;
+export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = z.infer<typeof insertProductSchema>;
+export type Recipe = typeof recipes.$inferSelect;
+export type Dish = typeof dishes.$inferSelect;
+export type Sales = typeof sales.$inferSelect;
+export type BudgetEntry = typeof budgetEntries.$inferSelect;
+export type InsertBudgetEntry = z.infer<typeof insertBudgetEntrySchema>;
+export type EconomicParameters = typeof economicParameters.$inferSelect;
+
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { 
+  insertProductSchema, 
+  insertSupplierSchema,
+  insertBudgetEntrySchema,
+} from "@shared/schema";
+import { z } from "zod";
+
+export async function registerRoutes(app: Express): Promise<Server> {
+
+  app.get("/api/products", async (req, res) => {
+    try {
+      const products = await storage.getProducts();
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
+  app.get("/api/products/:id", async (req, res) => {
+    try {
+      const product = await storage.getProduct(req.params.id);
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      res.json(product);
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      res.status(500).json({ error: "Failed to fetch product" });
+    }
+  });
+
+  app.post("/api/products", async (req, res) => {
+    try {
+      const validatedData = insertProductSchema.parse(req.body);
+      const product = await storage.createProduct(validatedData);
+      res.status(201).json(product);
+    } catch (error) {
+      console.error("Error creating product:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create product" });
+    }
+  });
+
+  app.get("/api/suppliers", async (req, res) => {
+    try {
+      const suppliers = await storage.getSuppliers();
+      res.json(suppliers);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+      res.status(500).json({ error: "Failed to fetch suppliers" });
+    }
+  });
+
+  app.post("/api/suppliers", async (req, res) => {
+    try {
+      const validatedData = insertSupplierSchema.parse(req.body);
+      const supplier = await storage.createSupplier(validatedData);
+      res.status(201).json(supplier);
+    } catch (error) {
+      console.error("Error creating supplier:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create supplier" });
+    }
+  });
+
+  app.get("/api/budget-entries", async (req, res) => {
+    try {
+      const entries = await storage.getBudgetEntries();
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching budget entries:", error);
+      res.status(500).json({ error: "Failed to fetch budget entries" });
+    }
+  });
+
+  app.get("/api/budget-entries/:year/:month", async (req, res) => {
+    try {
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      const entries = await storage.getBudgetEntriesByMonth(year, month);
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching budget entries by month:", error);
+      res.status(500).json({ error: "Failed to fetch budget entries" });
+    }
+  });
+
+  app.post("/api/budget-entries", async (req, res) => {
+    try {
+      const validatedData = insertBudgetEntrySchema.parse(req.body);
+      const entry = await storage.createBudgetEntry(validatedData);
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error("Error creating budget entry:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation error", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create budget entry" });
+    }
+  });
+
+  const httpServer = createServer(app);
+  
+  return httpServer;
+}
+
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+createRoot(document.getElementById("root")!).render(<App />);
+
+import { useState } from "react";
+import { Switch, Route, useLocation } from "wouter";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { ThemeProvider } from "next-themes";
+
+import AppHeader from "@/components/AppHeader";
+import { AppSidebar } from "@/components/AppSidebar";
+import { Dashboard } from "@/components/Dashboard";
+import Budget from "@/components/Budget";
+import PL from "@/pages/PL";
+import Recipes from "@/pages/Recipes";
+import Suppliers from "@/pages/Suppliers";
+import Sales from "@/pages/Sales";
+import ProductForm from "@/components/ProductForm";
+import ProductList from "@/components/ProductList";
+
+import {
+  useProducts,
+  useSuppliers,
+  useDishes,
+  useWaste,
+  usePersonalMeals,
+  useOrders,
+  useStockMovements,
+  useInventorySnapshots,
+  useSales,
+  useCreateProduct,
+  useUpdateProduct,
+  useDeleteProduct,
+} from "@/hooks/useApi";
+
+import type { Product, InsertProduct } from "@shared/schema";
+
+function FoodCostManager() {
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [maxFoodCost, setMaxFoodCost] = useState(30);
+  const [, navigate] = useLocation();
+  
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+  };
+  
+  const [editingProduct, setEditingProduct] = useState<Product | undefined>();
+  
+  const { data: products = [], isLoading: isLoadingProducts } = useProducts();
+  const { data: dishes = [], isLoading: isLoadingDishes } = useDishes();
+  const { data: waste = [], isLoading: isLoadingWaste } = useWaste();
+  const { data: personalMeals = [], isLoading: isLoadingPersonalMeals } = usePersonalMeals();
+  const { data: orders = [], isLoading: isLoadingOrders } = useOrders();
+  const { data: stockMovements = [], isLoading: isLoadingStockMovements } = useStockMovements();
+  const { data: inventorySnapshots = [], isLoading: isLoadingInventorySnapshots } = useInventorySnapshots();
+  const { data: salesData = [] } = useSales();
+  const { data: editableInventory = [] } = useQuery({
+    queryKey: ["/api/editable-inventory"],
+    enabled: products.length > 0
+  });
+
+  const createProductMutation = useCreateProduct();
+  const updateProductMutation = useUpdateProduct();
+  const deleteProductMutation = useDeleteProduct();
+
+  const handleAddProduct = (product: InsertProduct) => {
+    createProductMutation.mutate(product);
+    console.log("Product creation submitted:", product);
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    console.log("Editing product:", product);
+  };
+
+  const handleUpdateProduct = (updatedProduct: InsertProduct) => {
+    if (!editingProduct) return;
+    
+    updateProductMutation.mutate(
+      { id: editingProduct.id, data: updatedProduct },
+      {
+        onSuccess: () => {
+          setEditingProduct(undefined);
+        },
+      }
+    );
+    console.log("Product update submitted:", updatedProduct);
+  };
+
+  const handleCancelEditProduct = () => {
+    setEditingProduct(undefined);
+    console.log("Product edit cancelled");
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    deleteProductMutation.mutate(productId);
+    console.log("Product deletion submitted:", productId);
+  };
+
+  const isLoading = isLoadingProducts || isLoadingDishes || isLoadingWaste || isLoadingPersonalMeals || isLoadingOrders || isLoadingStockMovements || isLoadingInventorySnapshots;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg font-medium">Caricamento dati...</div>
+          <div className="text-sm text-muted-foreground mt-2">
+            Connessione al database in corso
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const sidebarStyle = {
+    "--sidebar-width": "20rem",
+    "--sidebar-width-icon": "4rem",
+  };
+
+  return (
+    <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+      <div className="flex h-screen w-full">
+        <AppSidebar activeTab={activeTab} onTabChange={handleTabChange} />
+        <div className="flex flex-col flex-1">
+          <header className="flex items-center justify-between p-2 border-b">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <AppHeader />
+          </header>
+          <main className="flex-1 overflow-auto p-4 sm:p-8">
+          {activeTab === "dashboard" && (
+            <Dashboard
+              products={products}
+              dishes={dishes}
+              orders={orders}
+              stockMovements={stockMovements}
+              inventorySnapshots={inventorySnapshots}
+              editableInventory={editableInventory as any[]}
+              waste={waste}
+              personalMeals={personalMeals}
+              onNavigateToSection={setActiveTab}
+            />
+          )}
+
+          {activeTab === "budget" && (
+            <Budget />
+          )}
+
+          {activeTab === "profit-loss" && (
+            <PL />
+          )}
+
+          {activeTab === "recipes" && (
+            <Recipes />
+          )}
+
+          {activeTab === "suppliers" && (
+            <Suppliers />
+          )}
+
+          {activeTab === "inventory" && (
+            <div className="md:flex md:gap-6 space-y-6 md:space-y-0">
+              <div className="md:w-1/2 space-y-6">
+                <ProductForm 
+                  onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct}
+                  editProduct={editingProduct}
+                  onCancel={editingProduct ? handleCancelEditProduct : undefined}
+                />
+              </div>
+              <div className="md:w-1/2 space-y-6">
+                <ProductList 
+                  products={products} 
+                  onEdit={handleEditProduct}
+                  onDelete={handleDeleteProduct}
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === "sales-detail" && (
+            <Sales />
+          )}
+
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={FoodCostManager} />
+      <Route path="/dashboard" component={FoodCostManager} />
+      <Route>404 Page Not Found</Route>
+    </Switch>
+  );
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
+
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { insertProductSchema, type InsertProduct, type Product } from "@shared/schema";
+import { useSuppliers } from "@/hooks/useApi";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Package } from "lucide-react";
+
+interface ProductFormProps {
+  onSubmit: (product: InsertProduct) => void;
+  editProduct?: Product;
+  onCancel?: () => void;
+}
+
+export default function ProductForm({ onSubmit, editProduct, onCancel }: ProductFormProps) {
+  const isEditing = !!editProduct;
+  const { data: suppliers = [], isLoading: suppliersLoading } = useSuppliers();
+
+  const productFormSchema = insertProductSchema.extend({
+    supplierId: z.string().min(1, "Devi selezionare un fornitore")
+  });
+
+  const form = useForm<InsertProduct>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: {
+      code: "",
+      name: "",
+      supplier: "",
+      supplierId: "",
+      supplierEmail: "",
+      waste: 0,
+      notes: "",
+      quantity: 0,
+      unit: "kg",
+      pricePerUnit: 0,
+    },
+  });
+
+  useEffect(() => {
+    if (editProduct) {
+      form.reset({
+        code: editProduct.code,
+        name: editProduct.name,
+        supplier: editProduct.supplier || "",
+        supplierId: editProduct.supplierId || "",
+        supplierEmail: editProduct.supplierEmail || "",
+        waste: editProduct.waste,
+        notes: editProduct.notes || "",
+        quantity: editProduct.quantity,
+        unit: editProduct.unit as "kg" | "l" | "pezzo",
+        pricePerUnit: editProduct.pricePerUnit,
+      });
+    } else {
+      form.reset({
+        code: "",
+        name: "",
+        supplier: "",
+        supplierId: "",
+        supplierEmail: "",
+        waste: 0,
+        notes: "",
+        quantity: 0,
+        unit: "kg",
+        pricePerUnit: 0,
+      });
+    }
+  }, [editProduct, form]);
+
+  const handleSubmit = (data: InsertProduct) => {
+    console.log("Product form submitted:", data);
+    onSubmit(data);
+    if (!isEditing) {
+      form.reset();
+    }
+  };
+
+  const handleCancel = () => {
+    console.log("Product form cancelled");
+    form.reset();
+    onCancel?.();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Package className="h-5 w-5 text-primary" />
+          {isEditing ? "Modifica Prodotto" : "Crea Prodotto"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="code"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Codice Prodotto</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Es. FAR-001"
+                      className="bg-yellow-100 dark:bg-yellow-900/30"
+                      data-testid="input-product-code"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome Prodotto</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Es. Farina Tipo 00"
+                      className="bg-yellow-100 dark:bg-yellow-900/30"
+                      data-testid="input-product-name"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="supplierId"
+              render={({ field }) => {
+                const selectedSupplier = suppliers.find(s => s.id === field.value);
+                return (
+                  <FormItem>
+                    <FormLabel>Fornitore *</FormLabel>
+                    <Select 
+                      value={field.value || ""} 
+                      onValueChange={(supplierId) => {
+                        field.onChange(supplierId);
+                        const selectedSupplier = suppliers.find(s => s.id === supplierId);
+                        if (selectedSupplier) {
+                          form.setValue("supplier", selectedSupplier.name);
+                          if (selectedSupplier.email) {
+                            form.setValue("supplierEmail", selectedSupplier.email);
+                          }
+                        }
+                      }}
+                      disabled={suppliersLoading}
+                    >
+                      <FormControl>
+                        <SelectTrigger 
+                          className="bg-yellow-100 dark:bg-yellow-900/30"
+                          data-testid="select-supplier"
+                        >
+                          <SelectValue placeholder={suppliersLoading ? "Caricamento..." : "Seleziona un fornitore"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {suppliers.length === 0 ? (
+                          <SelectItem value="" disabled>
+                            Nessun fornitore disponibile
+                          </SelectItem>
+                        ) : (
+                          suppliers.map((supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id}>
+                              {supplier.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                    {suppliers.length === 0 && (
+                      <p className="text-sm text-orange-600 dark:text-orange-400">
+                        Aggiungi fornitori nella sezione Fornitori prima di creare prodotti.
+                      </p>
+                    )}
+                  </FormItem>
+                );
+              }}
+            />
+
+            <FormField
+              control={form.control}
+              name="supplierEmail"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email Fornitore</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={field.value || ""}
+                      type="email"
+                      placeholder="Es. info@granoeco.it"
+                      className="bg-yellow-100 dark:bg-yellow-900/30"
+                      data-testid="input-supplier-email"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="waste"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sfrido (%)</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        {...field}
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={field.value}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        className="pr-8 bg-yellow-100 dark:bg-yellow-900/30"
+                        data-testid="input-waste"
+                      />
+                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground font-medium">
+                        %
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantità</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={field.value}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        className="bg-yellow-100 dark:bg-yellow-900/30"
+                        placeholder="0.00"
+                        data-testid="input-quantity"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="unit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Unità</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-unit">
+                          <SelectValue placeholder="Seleziona unità" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="kg">kg</SelectItem>
+                        <SelectItem value="l">l</SelectItem>
+                        <SelectItem value="pezzo">pezzo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="pricePerUnit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Costo/Unità (€)</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={field.value}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        className="bg-yellow-100 dark:bg-yellow-900/30"
+                        placeholder="0.00"
+                        data-testid="input-price"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button
+                type="submit"
+                className="flex-1"
+                data-testid="button-submit-product"
+              >
+                {isEditing ? "Aggiorna Prodotto" : "Aggiungi Prodotto"}
+              </Button>
+              {isEditing && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleCancel}
+                  className="flex-1"
+                  data-testid="button-cancel-product"
+                >
+                  Annulla
+                </Button>
+              )}
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
+
+import { useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { 
+  ChefHat, 
+  Users, 
+  TrendingUp, 
+  TrendingDown, 
+  DollarSign, 
+  Clock,
+  Calculator
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+
+import type { Product, Dish, Order, StockMovement, EconomicParameters, BudgetEntry, Sales } from "@shared/schema";
+import { useSales } from "@/hooks/useApi";
+
+interface DashboardProps {
+  products: Product[];
+  dishes: Dish[];
+  orders: Order[];
+  stockMovements: StockMovement[];
+  inventorySnapshots: any[];
+  editableInventory: any[];
+  waste: any[];
+  personalMeals: any[];
+  onNavigateToSection: (section: string) => void;
+}
+
+interface KPICardProps {
+  title: string;
+  value: string;
+  change?: number;
+  changeLabel?: string | React.ReactNode;
+  icon: React.ReactNode;
+  trend?: "up" | "down" | "stable";
+  status?: "good" | "warning" | "danger";
+  onClick?: () => void;
+}
+
+function KPICard({ title, value, change, changeLabel, icon, trend, status = "good", onClick }: KPICardProps) {
+  const getBadgeVariant = () => {
+    if (change !== undefined) {
+      return "outline";
+    }
+    switch (status) {
+      case "good": return "default";
+      case "warning": return "secondary";
+      case "danger": return "destructive";
+      default: return "default";
+    }
+  };
+
+  const getChangeClasses = () => {
+    if (change === undefined) return "";
+    return change < 0 
+      ? "!bg-green-100 dark:!bg-green-900 !text-green-800 dark:!text-green-200 !border-green-200 dark:!border-green-700"
+      : "!bg-red-100 dark:!bg-red-900 !text-red-800 dark:!text-red-200 !border-red-200 dark:!border-red-700";
+  };
+
+  const getTrendIcon = () => {
+    if (change === undefined) return null;
+    return trend === "up" ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />;
+  };
+
+  return (
+    <Card 
+      className={`hover-elevate ${onClick ? 'cursor-pointer' : ''}`} 
+      onClick={onClick}
+      data-testid={`kpi-card-${title.toLowerCase().replace(/\s+/g, '-')}`}
+    >
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+          {icon}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="text-2xl font-bold">{value}</div>
+          {change !== undefined && (
+            <Badge variant={getBadgeVariant()} className={`flex items-center gap-1 ${getChangeClasses()}`}>
+              {getTrendIcon()}
+              <span className="text-xs">
+                {changeLabel ? changeLabel : `${change > 0 ? '+' : ''}${change.toFixed(1)}%`}
+              </span>
+            </Badge>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface PillarOverviewProps {
+  title: string;
+  description: string;
+  currentValue: string;
+  targetValue: string;
+  progress: number;
+  status: "good" | "warning" | "danger";
+  icon: React.ReactNode;
+  onExplore: () => void;
+  isComingSoon?: boolean;
+}
+
+function PillarOverview({ 
+  title, 
+  description, 
+  currentValue, 
+  targetValue, 
+  progress, 
+  status, 
+  icon, 
+  onExplore,
+  isComingSoon = false
+}: PillarOverviewProps) {
+  const getStatusColor = () => {
+    switch (status) {
+      case "good": return "text-green-600 dark:text-green-400";
+      case "warning": return "text-yellow-600 dark:text-yellow-400";
+      case "danger": return "text-red-600 dark:text-red-400";
+    }
+  };
+
+  const getProgressColor = () => {
+    switch (status) {
+      case "good": return "bg-green-500";
+      case "warning": return "bg-yellow-500";
+      case "danger": return "bg-red-500";
+    }
+  };
+
+  return (
+    <Card className="hover-elevate">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg bg-muted ${getStatusColor()}`}>
+            {icon}
+          </div>
+          <div>
+            <CardTitle className="text-lg">{title}</CardTitle>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        {isComingSoon && (
+          <Badge variant="secondary" className="ml-2">
+            <Clock className="h-3 w-3 mr-1" />
+            In Sviluppo
+          </Badge>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-2xl font-bold">{currentValue}</div>
+            <div className="text-sm text-muted-foreground">Target: {targetValue}</div>
+          </div>
+          <div className="text-right">
+            <div className={`text-sm font-medium ${getStatusColor()}`}>
+              {progress}% del target
+            </div>
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <Progress value={progress} className="h-2" />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Attuale</span>
+            <span>Target</span>
+          </div>
+        </div>
+
+        <Button 
+          onClick={onExplore} 
+          className="w-full" 
+          variant={isComingSoon ? "outline" : "default"}
+          disabled={isComingSoon}
+          data-testid={`button-explore-${title.toLowerCase().replace(/\s+/g, '-')}`}
+        >
+          {isComingSoon ? "Disponibile Presto" : `Esplora ${title}`}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function Dashboard({ 
+  products, 
+  dishes, 
+  orders, 
+  stockMovements, 
+  inventorySnapshots,
+  editableInventory,
+  waste, 
+  personalMeals, 
+  onNavigateToSection 
+}: DashboardProps) {
+  const { data: salesData = [] } = useSales();
+  
+  const currentYear = (() => {
+    const saved = localStorage.getItem('foodyflow-selected-year');
+    return saved ? parseInt(saved) : new Date().getFullYear();
+  })();
+  const currentMonth = (() => {
+    const saved = localStorage.getItem('foodyflow-selected-month');
+    return saved ? parseInt(saved) : new Date().getMonth() + 1;
+  })();
+
+  const { data: ecoParams } = useQuery({
+    queryKey: ['/api/economic-parameters', currentYear, currentMonth],
+    queryFn: async () => {
+      const response = await fetch(`/api/economic-parameters/${currentYear}/${currentMonth}`);
+      if (!response.ok) {
+        return null;
+      }
+      return response.json() as Promise<EconomicParameters>;
+    },
+    retry: false
+  });
+
+  const currentDate = new Date();
+  const actualYear = currentDate.getFullYear();
+  const actualMonth = currentDate.getMonth() + 1;
+  
+  const { data: foodCostMetrics } = useQuery({
+    queryKey: ['/api/metrics/food-cost', actualYear, actualMonth]
+  });
+
+  const { data: budgetEntries = [] } = useQuery({
+    queryKey: ['/api/budget-entries', currentYear, currentMonth],
+    queryFn: () => 
+      fetch(`/api/budget-entries/${currentYear}/${currentMonth}`)
+        .then(res => res.json()) as Promise<BudgetEntry[]>
+  });
+
+  const productMap = useMemo(() => 
+    new Map(products.map(p => [p.id, p])), 
+    [products]
+  );
+
+  const salesByDish = useMemo(() => {
+    const salesMap = new Map<string, { totalQuantity: number; totalRevenue: number; totalCost: number }>();
+    
+    salesData.forEach(sale => {
+      const existing = salesMap.get(sale.dishId) || { totalQuantity: 0, totalRevenue: 0, totalCost: 0 };
+      salesMap.set(sale.dishId, {
+        totalQuantity: existing.totalQuantity + sale.quantitySold,
+        totalRevenue: existing.totalRevenue + sale.totalRevenue,
+        totalCost: existing.totalCost + sale.totalCost
+      });
+    });
+    
+    return salesMap;
+  }, [salesData]);
+  
+  const { totalFoodSales, totalFoodCost, foodCostPercentage, theoreticalFoodCostPercentage, realVsTheoreticalDiff } = useMemo(() => {
+    const sales = Array.from(salesByDish.values()).reduce((sum, dishSales) => sum + dishSales.totalRevenue, 0);
+    
+    const totalCostOfSales = Array.from(salesByDish.values()).reduce((sum, dishSales) => sum + dishSales.totalCost, 0);
+    const theoreticalPercentage = sales > 0 ? (totalCostOfSales / sales) * 100 : 0;
+    
+    const totaleInizialeM = editableInventory.reduce((sum, inventory) => {
+      const product = productMap.get(inventory.productId);
+      return sum + (product ? inventory.initialQuantity * product.pricePerUnit : 0);
+    }, 0);
+    
+    const totaleInM = stockMovements
+      .filter(movement => movement.movementType === 'in')
+      .reduce((sum, movement) => sum + (movement.totalCost || 0), 0);
+    
+    const totaleFinaleM = editableInventory.reduce((sum, inventory) => {
+      const product = productMap.get(inventory.productId);
+      return sum + (product ? inventory.finalQuantity * product.pricePerUnit : 0);
+    }, 0);
+    
+    const foodCostValue = totaleInizialeM + totaleInM - totaleFinaleM;
+    const realPercentage = sales > 0 ? (foodCostValue / sales) * 100 : 0;
+    
+    const differential = realPercentage - theoreticalPercentage;
+    
+    return {
+      totalFoodSales: sales,
+      totalFoodCost: foodCostValue,
+      foodCostPercentage: realPercentage,
+      theoreticalFoodCostPercentage: theoreticalPercentage,
+      realVsTheoreticalDiff: differential
+    };
+  }, [dishes, productMap, editableInventory, stockMovements]);
+  
+  const wasteValue = useMemo(() => 
+    waste.reduce((sum, w) => sum + (w.totalCost || 0), 0), 
+    [waste]
+  );
+  
+  const personalMealsCost = useMemo(() => 
+    personalMeals.reduce((sum, p) => sum + (p.totalCost || 0), 0), 
+    [personalMeals]
+  );
+
+  const labourCostPercentage = 0;
+
+  return (
+    <div className="space-y-6" data-testid="dashboard-main">
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-bold">Dashboard Gestione Ristorante</h1>
+        <p className="text-muted-foreground">
+          Controllo completo di Food Cost, Labour Cost e Performance Finanziaria
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <KPICard
+          title="Food Cost %"
+          value={`${foodCostPercentage.toFixed(1)}%`}
+          change={realVsTheoreticalDiff}
+          trend={realVsTheoreticalDiff > 0 ? "up" : "down"}
+          status={foodCostPercentage > 30 ? "danger" : foodCostPercentage > 25 ? "warning" : "good"}
+          icon={<ChefHat className="h-4 w-4" />}
+          onClick={() => onNavigateToSection("food-cost")}
+        />
+        
+        <KPICard
+          title="Labour Cost %"
+          value={`${labourCostPercentage.toFixed(1)}%`}
+          change={1.2}
+          trend="up"
+          status={labourCostPercentage > 35 ? "danger" : labourCostPercentage > 30 ? "warning" : "good"}
+          icon={<Users className="h-4 w-4" />}
+          onClick={() => onNavigateToSection("labour-cost")}
+        />
+        
+        <KPICard
+          title="EBITDA"
+          value="18.5%"
+          change={2.3}
+          trend="up"
+          status="good"
+          icon={<TrendingUp className="h-4 w-4" />}
+          onClick={() => onNavigateToSection("profit-loss")}
+        />
+        
+        <KPICard
+          title="Fatturato Oggi"
+          value="€42,000"
+          change={5.3}
+          trend="up"
+          status="good"
+          icon={<DollarSign className="h-4 w-4" />}
+          onClick={() => onNavigateToSection("sales-detail")}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <PillarOverview
+          title="Food Cost"
+          description="Controllo costi ingredienti, ricette e sprechi"
+          currentValue={`€${totalFoodCost.toFixed(1)}`}
+          targetValue="€10,500"
+          progress={Math.min(100, (10500 / totalFoodCost) * 100) || 75}
+          status={foodCostPercentage > 30 ? "danger" : foodCostPercentage > 25 ? "warning" : "good"}
+          icon={<ChefHat className="h-6 w-6" />}
+          onExplore={() => onNavigateToSection("food-cost")}
+        />
+
+        <PillarOverview
+          title="Labour Cost"
+          description="Gestione personale, turni e produttività"
+          currentValue="€0"
+          targetValue="€15,000"
+          progress={0}
+          status="good"
+          icon={<Users className="h-6 w-6" />}
+          onExplore={() => onNavigateToSection("labour-cost")}
+          isComingSoon={true}
+        />
+
+        <PillarOverview
+          title="Performance Finanziaria"
+          description="EBITDA, marginalità e crescita"
+          currentValue="€7,750"
+          targetValue="€8,000"
+          progress={97}
+          status="good"
+          icon={<Calculator className="h-6 w-6" />}
+          onExplore={() => onNavigateToSection("profit-loss")}
+        />
+      </div>
+    </div>
+  );
+}
+
+import { 
+  LayoutDashboard, 
+  Calendar, 
+  Calculator, 
+  Users, 
+  BarChart3, 
+  Warehouse, 
+  ChefHat, 
+  Truck, 
+  ArrowUpDown, 
+  Trash2,
+  Utensils,
+  TrendingUp
+} from "lucide-react";
+import { useLocation } from "wouter";
+import { 
+  Sidebar, 
+  SidebarContent, 
+  SidebarGroup, 
+  SidebarGroupContent, 
+  SidebarGroupLabel, 
+  SidebarMenu, 
+  SidebarMenuButton, 
+  SidebarMenuItem,
+  SidebarHeader
+} from "@/components/ui/sidebar";
+
+const primaryTabs = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "budget", label: "Budget", icon: Calendar },
+  { id: "profit-loss", label: "P&L", icon: TrendingUp },
+  { id: "food-cost", label: "Food Cost", icon: Calculator },
+  { id: "labour-cost", label: "Labour Cost", icon: Users },
+  { id: "sales-detail", label: "Vendite", icon: BarChart3 },
+];
+
+const managementTabs = [
+  { id: "inventory", label: "Inventario", icon: Warehouse },
+  { id: "recipes", label: "Ricette", icon: ChefHat },
+  { id: "suppliers", label: "Fornitori", icon: Users },
+  { id: "orders", label: "Ordini", icon: Truck },
+  { id: "warehouse", label: "Magazzino", icon: ArrowUpDown },
+  { id: "waste", label: "Sprechi/Staff Food", icon: Trash2 },
+];
+
+interface AppSidebarProps {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}
+
+export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
+  const [location, navigate] = useLocation();
+  
+  const handleNavigation = (item: any) => {
+    navigate("/");
+    onTabChange(item.id);
+  };
+
+  const isActive = (item: any) => {
+    return activeTab === item.id;
+  };
+
+  return (
+    <Sidebar>
+      <SidebarHeader className="border-b border-border">
+        <div className="flex items-center gap-2 px-4 py-3">
+          <Utensils className="h-6 w-6 text-primary" />
+          <div className="flex flex-col">
+            <h1 className="text-lg font-bold text-foreground">FoodyFlow</h1>
+            <p className="text-xs text-muted-foreground italic">Evolve Your Eatery</p>
+          </div>
+        </div>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Operazioni</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {primaryTabs.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton 
+                      onClick={() => handleNavigation(item)}
+                      isActive={isActive(item)}
+                      data-testid={`sidebar-${item.id}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        
+        <SidebarGroup>
+          <SidebarGroupLabel>Gestione</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {managementTabs.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton 
+                      onClick={() => handleNavigation(item)}
+                      isActive={isActive(item)}
+                      data-testid={`sidebar-${item.id}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
+  );
+}
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import type { 
+  Product, Supplier, Recipe, Dish, Waste, PersonalMeal, Order, StockMovement, InventorySnapshot, Sales,
+  InsertProduct, InsertSupplier, InsertRecipe, InsertDish, InsertWaste, InsertPersonalMeal, InsertOrder, InsertStockMovement, InsertInventorySnapshot, InsertSales,
+  UpdateProduct, UpdateSupplier, UpdateRecipe, UpdateDish, UpdateOrder, UpdateStockMovement, UpdateInventorySnapshot, UpdateSales
+} from "@shared/schema";
+
+export function useProducts() {
+  return useQuery({
+    queryKey: ["/api/products"],
+    queryFn: api.products.getProducts,
+  });
+}
+
+export function useProduct(id: string) {
+  return useQuery({
+    queryKey: ["/api/products", id],
+    queryFn: () => api.products.getProduct(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateProduct() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: api.products.createProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({
+        title: "Successo",
+        description: "Prodotto creato con successo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante la creazione del prodotto",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useUpdateProduct() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateProduct }) =>
+      api.products.updateProduct(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({
+        title: "Successo",
+        description: "Prodotto aggiornato con successo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante l'aggiornamento del prodotto",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeleteProduct() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: api.products.deleteProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      toast({
+        title: "Successo",
+        description: "Prodotto eliminato con successo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante l'eliminazione del prodotto",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useSuppliers() {
+  return useQuery({
+    queryKey: ["/api/suppliers"],
+    queryFn: api.suppliers.getSuppliers,
+  });
+}
+
+export function useSupplier(id: string) {
+  return useQuery({
+    queryKey: ["/api/suppliers", id],
+    queryFn: () => api.suppliers.getSupplier(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateSupplier() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: api.suppliers.createSupplier,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+      toast({
+        title: "Successo",
+        description: "Fornitore creato con successo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante la creazione del fornitore",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useUpdateSupplier() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateSupplier }) =>
+      api.suppliers.updateSupplier(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+      toast({
+        title: "Successo",
+        description: "Fornitore aggiornato con successo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante l'aggiornamento del fornitore",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeleteSupplier() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: api.suppliers.deleteSupplier,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+      toast({
+        title: "Successo",
+        description: "Fornitore eliminato con successo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante l'eliminazione del fornitore",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useSales() {
+  return useQuery({
+    queryKey: ["/api/sales"],
+    queryFn: api.sales.getSales,
+  });
+}
+
+export function useCreateSale() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: api.sales.createSale,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/metrics/food-cost"] });
+      toast({
+        title: "Successo",
+        description: "Vendita creata con successo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante la creazione della vendita",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeleteSale() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: api.sales.deleteSale,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/metrics/food-cost"] });
+      toast({
+        title: "Successo",
+        description: "Vendita eliminata con successo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante l'eliminazione della vendita",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { Capacitor } from "@capacitor/core";
+
+async function throwIfResNotOk(res: Response) {
+  if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+    throw new Error(`${res.status}: ${text}`);
+  }
+}
+
+const getApiBaseUrl = (): string => {
+  if (Capacitor.isNativePlatform()) {
+    return import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+  }
+  return '';
+};
+
+export async function apiRequest(
+  method: string,
+  url: string,
+  data?: unknown | undefined,
+): Promise<Response> {
+  const baseUrl = getApiBaseUrl();
+  const fullUrl = baseUrl + url;
+  
+  const res = await fetch(fullUrl, {
+    method,
+    headers: data ? { "Content-Type": "application/json" } : {},
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
+  });
+
+  await throwIfResNotOk(res);
+  return res;
+}
+
+type UnauthorizedBehavior = "returnNull" | "throw";
+export const getQueryFn: <T>(options: {
+  on401: UnauthorizedBehavior;
+}) => QueryFunction<T> =
+  ({ on401: unauthorizedBehavior }) =>
+  async ({ queryKey }) => {
+    const baseUrl = getApiBaseUrl();
+    const fullUrl = baseUrl + queryKey.join("/");
+    
+    const res = await fetch(fullUrl, {
+      credentials: "include",
+    });
+
+    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      return null;
+    }
+
+    await throwIfResNotOk(res);
+    return await res.json();
+  };
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      queryFn: getQueryFn({ on401: "throw" }),
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+      retry: false,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    url('/attached_assets/FoodyFlow_1757981655801.png'),
+    url('/attached_assets/generated_images/Herbs_and_spices_overlay_c4636be9.png'),
+    url('/attached_assets/generated_images/Restaurant_kitchen_background_pattern_a88a5456.png');
+  background-position: 
+    center center,
+    top left,
+    bottom right;
+  background-repeat: 
+    no-repeat,
+    repeat,
+    no-repeat;
+  background-size: 
+    150px 150px,
+    100px 100px,
+    cover;
+  opacity: 0.04;
+  z-index: -1;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  body::before {
+    background-size: 
+      350px 350px,
+      200px 200px,
+      cover;
+  }
+}
+
+.mobile-table-scroll {
+  @apply overflow-x-auto max-w-full;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  .mobile-touch-target {
+    @apply min-h-11 min-w-11;
+  }
+  
+  .mobile-hide {
+    @apply hidden;
+  }
+  
+  .mobile-stack {
+    @apply flex-col gap-2;
+  }
+  
+  .mobile-text-large {
+    @apply text-base;
+  }
+}
+
+:root {
+  --background: 45 15% 96%;
+  --foreground: 220 15% 25%;
+  --card: 45 20% 98%;
+  --card-foreground: 220 15% 25%;
+  --popover: 45 20% 98%;
+  --popover-foreground: 220 15% 25%;
+  --primary: 25 45% 35%;
+  --primary-foreground: 45 25% 95%;
+  --secondary: 15 55% 45%;
+  --secondary-foreground: 45 25% 95%;
+  --muted: 45 15% 90%;
+  --muted-foreground: 25 10% 45%;
+  --accent: 35 45% 55%;
+  --accent-foreground: 220 15% 25%;
+  --destructive: 12 70% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 25 25% 75%;
+  --input: 25 20% 85%;
+  --ring: 25 45% 35%;
+  --radius: 0.875rem;
+}
+
+.dark {
+  --background: 25 20% 12%;
+  --foreground: 45 25% 85%;
+  --card: 25 25% 15%;
+  --card-foreground: 45 25% 85%;
+  --popover: 25 20% 12%;
+  --popover-foreground: 45 25% 85%;
+  --primary: 25 35% 25%;
+  --primary-foreground: 45 25% 95%;
+  --secondary: 15 40% 30%;
+  --secondary-foreground: 45 25% 95%;
+  --muted: 25 15% 18%;
+  --muted-foreground: 25 10% 55%;
+  --accent: 35 40% 45%;
+  --accent-foreground: 45 25% 95%;
+  --destructive: 12 60% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 25 15% 20%;
+  --input: 25 20% 22%;
+  --ring: 25 35% 25%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
+export default defineConfig({
+  plugins: [
+    react(),
+    runtimeErrorOverlay(),
+    ...(process.env.NODE_ENV !== "production" &&
+    process.env.REPL_ID !== undefined
+      ? [
+          await import("@replit/vite-plugin-cartographer").then((m) =>
+            m.cartographer(),
+          ),
+        ]
+      : []),
+  ],
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path.resolve(import.meta.dirname, "shared"),
+      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+    },
+  },
+  root: path.resolve(import.meta.dirname, "client"),
+  build: {
+    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    emptyOutDir: true,
+  },
+  server: {
+    fs: {
+      strict: true,
+      deny: ["**/.*"],
+    },
+  },
+});
+
+import type { Config } from "tailwindcss";
+
+export default {
+  darkMode: ["class"],
+  content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
+  theme: {
+    extend: {
+      borderRadius: {
+        lg: ".5625rem",
+        md: ".375rem",
+        sm: ".1875rem",
+      },
+      colors: {
+        background: "hsl(var(--background) / <alpha-value>)",
+        foreground: "hsl(var(--foreground) / <alpha-value>)",
+        card: {
+          DEFAULT: "hsl(var(--card) / <alpha-value>)",
+          foreground: "hsl(var(--card-foreground) / <alpha-value>)",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover) / <alpha-value>)",
+          foreground: "hsl(var(--popover-foreground) / <alpha-value>)",
+        },
+        primary: {
+          DEFAULT: "hsl(var(--primary) / <alpha-value>)",
+          foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
+          foreground: "hsl(var(--secondary-foreground) / <alpha-value>)",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
+          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent) / <alpha-value>)",
+          foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
+          foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
+        },
+        border: "hsl(var(--border) / <alpha-value>)",
+        input: "hsl(var(--input) / <alpha-value>)",
+        ring: "hsl(var(--ring) / <alpha-value>)",
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+} satisfies Config;
+
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./client/src/*"],
+      "@shared/*": ["./shared/*"],
+      "@assets/*": ["./attached_assets/*"]
+    }
+  },
+  "include": ["client/src", "shared", "server"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  schema: "./shared/schema.ts",
+  out: "./migrations",
+  dialect: "postgresql",
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+});
+
+npm install
+npm run db:push
+npm run dev

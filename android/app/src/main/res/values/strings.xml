@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FoodyFlow</string>
+    <string name="title_activity_main">FoodyFlow</string>
+    <string name="package_name">it.foodyflow.app</string>
+    <string name="custom_url_scheme">it.foodyflow.app</string>
+</resources>

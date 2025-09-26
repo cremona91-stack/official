@@ -1,0 +1,1896 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Cost Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Libreria per l'esportazione in PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+            background-image: url('https://www.transparenttextures.com/patterns/pizza.png');
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .tab-content.hidden { display: none; }
+        .tab-button {
+            transition: all 0.2s ease-in-out;
+            font-weight: 500;
+        }
+        .tab-button.active {
+            background-color: #f1f5f9;
+            border-bottom: 2px solid #3b82f6;
+            color: #3b82f6;
+        }
+        .animate-pulse-fast {
+            animation: pulse-fast 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-fast {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        details > summary {
+            list-style: none;
+        }
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-8 flex items-center justify-center min-h-screen">
+    
+    <div class="w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <!-- Header -->
+        <header class="bg-gray-50 text-gray-800 p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between border-b border-gray-200">
+            <div class="flex flex-col items-center sm:items-start text-center sm:text-left mb-4 sm:mb-0">
+                <h1 class="text-2xl sm:text-3xl font-bold flex items-center">
+                    <i class="fas fa-utensils mr-2 text-blue-600"></i>
+                    Food Cost Manager
+                    <i class="fas fa-bowl-food ml-2 text-blue-600"></i>
+                </h1>
+                <p class="text-sm italic text-gray-600 mt-2">L'importante è conoscere</p>
+            </div>
+            <button id="pdf-export-btn" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-600 transition-colors flex items-center">
+                <i class="fas fa-file-pdf mr-2"></i>Esporta PDF
+            </button>
+        </header>
+
+        <!-- Tabs Navigation -->
+        <nav class="flex justify-center bg-gray-100 border-b border-gray-200">
+            <button id="inventory-tab-btn" class="tab-button active flex-1 py-3 px-4 text-center text-sm text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center">
+                <i class="fas fa-warehouse mr-2"></i>
+                Lista Materie Prime
+            </button>
+            <button id="food-cost-tab-btn" class="tab-button flex-1 py-3 px-4 text-center text-sm text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center">
+                <i class="fas fa-calculator mr-2"></i>
+                Calcolo Food Cost
+            </button>
+            <button id="waste-tab-btn" class="tab-button flex-1 py-3 px-4 text-center text-sm text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center">
+                <i class="fas fa-trash-alt mr-2"></i>
+                Waste e pasti personali
+            </button>
+            <button id="summary-tab-btn" class="tab-button flex-1 py-3 px-4 text-center text-sm text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center">
+                <i class="fas fa-chart-line mr-2"></i>
+                Riepilogo Vendite
+            </button>
+        </nav>
+        
+        <!-- Tab Content Wrapper -->
+        <div class="flex-grow p-4 sm:p-8 overflow-y-auto">
+
+            <!-- Tab: Lista Acquisti & Ricette -->
+            <div id="inventory-tab" class="tab-content">
+                <div class="md:flex md:space-x-6 space-y-6 md:space-y-0">
+                    <!-- Colonna sinistra: Moduli di inserimento -->
+                    <div class="md:w-1/2">
+                        <!-- Modulo Materie Prime -->
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200 mb-6">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-box-open mr-2 text-blue-500"></i>Crea Prodotto</h2>
+                            <form id="inventoryForm" class="space-y-4">
+                                <div>
+                                    <label for="inventoryProductCode" class="block text-sm font-medium text-gray-700">Codice Prodotto:</label>
+                                    <input type="text" id="inventoryProductCode" required placeholder="Es. FAR-001" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                </div>
+                                <div>
+                                    <label for="inventoryName" class="block text-sm font-medium text-gray-700">Nome Prodotto:</label>
+                                    <input type="text" id="inventoryName" required placeholder="Es. Farina Tipo 00" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                </div>
+                                <div>
+                                    <label for="inventorySupplier" class="block text-sm font-medium text-gray-700">Fornitore:</label>
+                                    <input type="text" id="inventorySupplier" placeholder="Es. Grano & Co." class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                </div>
+                                <div>
+                                    <label for="inventorySfrido" class="block text-sm font-medium text-gray-700">Sfrido (%)</label>
+                                    <div class="relative mt-1">
+                                        <input type="number" id="inventorySfrido" value="0" min="0" max="100" class="block w-full p-2 pr-8 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                        <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 font-bold">%</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="inventoryNotes" class="block text-sm font-medium text-gray-700">Note:</label>
+                                    <textarea id="inventoryNotes" rows="2" placeholder="Aggiungi note sul prodotto..." class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50"></textarea>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div class="flex-1">
+                                        <label for="inventoryQuantity" class="block text-sm font-medium text-gray-700">Quantità:</label>
+                                        <input type="number" id="inventoryQuantity" required step="0.01" min="0" placeholder="0.00" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                    </div>
+                                    <div class="flex-1">
+                                        <label for="inventoryUnit" class="block text-sm font-medium text-gray-700">Unità:</label>
+                                        <select id="inventoryUnit" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                            <option value="kg">kg</option>
+                                            <option value="l">l</option>
+                                            <option value="pezzo">pezzo</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex-1">
+                                        <label for="inventoryPricePerUnit" class="block text-sm font-medium text-gray-700">Costo/Unità (€):</label>
+                                        <input type="number" id="inventoryPricePerUnit" required step="0.01" min="0" placeholder="0.00" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button type="submit" id="addInventoryBtn" class="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors">Aggiungi Prodotto</button>
+                                    <button type="button" id="cancelInventoryEditBtn" class="hidden flex-1 bg-gray-400 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-gray-500 transition-colors">Annulla</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Modulo Ricette -->
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-pot-food mr-2 text-blue-500"></i>Crea Ricetta</h2>
+                            <form id="recipeForm" class="space-y-4">
+                                <div>
+                                    <label for="recipeName" class="block text-sm font-medium text-gray-700">Nome Ricetta:</label>
+                                    <input type="text" id="recipeName" required placeholder="Es. Pasta Frolla" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                </div>
+                                <div class="border-t border-gray-200 pt-4">
+                                    <h3 class="text-md font-semibold text-gray-800 mb-2">Ingredienti:</h3>
+                                    <div class="space-y-2">
+                                        <div class="flex space-x-2">
+                                            <select id="recipeIngredientSelect" class="w-1/2 p-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                                <option value="" disabled selected>Seleziona un ingrediente</option>
+                                            </select>
+                                            <input type="number" id="recipeIngredientQuantity" placeholder="Quantità" step="0.01" min="0" class="w-1/2 p-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                        </div>
+                                        <div class="flex space-x-2">
+                                            <input type="text" id="recipeIngredientUnitDisplay" readonly placeholder="Unità" class="w-1/2 p-2 text-sm border border-gray-300 rounded-lg shadow-sm transition-colors bg-gray-100 text-gray-600">
+                                            <input type="text" id="recipeIngredientPricePerUnitDisplay" readonly placeholder="Costo/Unità (€)" class="w-1/2 p-2 text-sm border border-gray-300 rounded-lg shadow-sm transition-colors bg-gray-100 text-gray-600">
+                                        </div>
+                                        <div class="flex space-x-2">
+                                            <button type="button" id="addRecipeIngredientBtn" class="flex-1 bg-blue-500 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors">Aggiungi ingrediente</button>
+                                            <button type="button" id="cancelRecipeIngredientEditBtn" class="hidden flex-1 bg-gray-400 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-gray-500 transition-colors">Annulla</button>
+                                        </div>
+                                    </div>
+                                    <ul id="recipeIngredientsList" class="mt-4 space-y-2"></ul>
+                                    <div class="flex justify-between items-center mt-4 bg-white p-3 rounded-lg shadow-inner border border-gray-200">
+                                        <span class="text-sm font-semibold text-gray-800">Costo Totale Ricetta:</span>
+                                        <span id="totalRecipeCost" class="text-sm font-bold text-gray-700">€0.00</span>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button type="submit" id="addRecipeBtn" disabled class="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Aggiungi Ricetta</button>
+                                    <button type="button" id="cancelRecipeEditBtn" class="hidden flex-1 bg-gray-400 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-gray-500 transition-colors">Annulla Modifiche</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <!-- Colonna destra: Liste Inventario e Ricette -->
+                    <div class="md:w-1/2">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-clipboard-list mr-2 text-blue-500"></i>Lista Materie Prime</h2>
+                        <div id="inventoryList" class="space-y-4">
+                            <p id="noInventoryMessage" class="text-center text-gray-500 italic hidden">Nessun prodotto in magazzino.</p>
+                        </div>
+                        <h2 class="text-2xl font-bold text-gray-800 mt-8 mb-4 flex items-center"><i class="fas fa-salad-bowl mr-2 text-blue-500"></i>Ricette Salvate</h2>
+                        <div id="recipesList" class="space-y-4">
+                            <p id="noRecipesMessage" class="text-center text-gray-500 italic hidden">Nessuna ricetta ancora creata.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Calcolo Food Cost -->
+            <div id="food-cost-tab" class="tab-content hidden">
+                <!-- Riepilogo Totale -->
+                <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200 mb-8">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-chart-bar mr-2 text-blue-500"></i>Riepilogo Generale</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-3 rounded-lg shadow-inner border border-gray-200 flex flex-col items-start">
+                            <span class="text-sm font-semibold text-gray-800">Costo Totale Materiali:</span>
+                            <span id="totalCostOfSales" class="text-xl font-bold text-red-600 mt-1">€0.00</span>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-inner border border-gray-200 flex flex-col items-start">
+                            <span class="text-sm font-semibold text-gray-800">Ricavo Totale (Lordo / Netto):</span>
+                            <span id="totalSales" class="text-sm font-bold text-blue-600 mt-1">€0.00 / €0.00</span>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-inner border border-gray-200 flex flex-col items-start">
+                            <span class="text-sm font-semibold text-gray-800">Totale Sprechi:</span>
+                            <span id="totalWasteCostSummary" class="text-xl font-bold text-red-600 mt-1">€0.00</span>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-inner border border-gray-200 flex flex-col items-start">
+                            <span class="text-sm font-semibold text-gray-800">Totale Pasti Personali:</span>
+                            <span id="totalPersonalMealsCostSummary" class="text-xl font-bold text-red-600 mt-1">€0.00</span>
+                        </div>
+                        <div class="col-span-1 sm:col-span-2 lg:col-span-4 bg-white p-3 rounded-lg shadow-inner border border-gray-200">
+                            <label for="maxFoodCost" class="block text-sm font-medium text-gray-700">Soglia Food Cost</label>
+                            <div class="relative mt-1">
+                                <input type="number" id="maxFoodCost" value="30" min="0" max="100" class="block w-full p-2 pr-8 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-green-100 text-green-800 font-bold">
+                                <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 font-bold">%</span>
+                            </div>
+                            <div class="mt-4 flex items-center justify-between">
+                                <span class="text-sm font-semibold text-gray-800">Food Cost Teorico Ponderato:</span>
+                                <span id="finalFC" class="text-xl font-bold text-green-800 mt-1">--%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contenuto: Modulo e Piatti -->
+                <div class="md:flex md:space-x-6 space-y-6 md:space-y-0">
+                    <!-- Colonna sinistra: Modulo di inserimento -->
+                    <div class="md:w-1/2">
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-calculator mr-2 text-blue-500"></i>Nuovo Piatto</h2>
+                            <form id="dishForm" class="space-y-4">
+                                <div>
+                                    <label for="dishName" class="block text-sm font-medium text-gray-700">Nome Piatto:</label>
+                                    <input type="text" id="dishName" required placeholder="Es. Spaghetti alla Carbonara" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                </div>
+                                <div class="border-t border-gray-200 pt-4">
+                                    <h3 class="text-md font-semibold text-gray-800 mb-2">Ingredienti:</h3>
+                                    <div class="space-y-2">
+                                        <div class="flex space-x-2">
+                                            <select id="ingredientNameSelect" class="w-1/2 p-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                                <option value="" disabled selected>Seleziona un ingrediente</option>
+                                            </select>
+                                            <input type="number" id="ingredientQuantity" placeholder="Quantità" step="0.01" min="0" class="w-1/2 p-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                        </div>
+                                        <div class="flex space-x-2">
+                                            <input type="text" id="ingredientUnitDisplay" readonly placeholder="Unità" class="w-1/2 p-2 text-sm border border-gray-300 rounded-lg shadow-sm transition-colors bg-gray-100 text-gray-600">
+                                            <input type="text" id="ingredientPricePerUnitDisplay" readonly placeholder="Costo/Unità (€)" class="w-1/2 p-2 text-sm border border-gray-300 rounded-lg shadow-sm transition-colors bg-gray-100 text-gray-600">
+                                        </div>
+                                        <div class="flex space-x-2">
+                                            <button type="button" id="addIngredientBtn" class="flex-1 bg-blue-500 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors">Aggiungi ingrediente</button>
+                                            <button type="button" id="cancelIngredientEditBtn" class="hidden flex-1 bg-gray-400 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-gray-500 transition-colors">Annulla</button>
+                                        </div>
+                                    </div>
+                                    <ul id="ingredientsList" class="mt-4 space-y-2"></ul>
+                                    <div class="flex justify-between items-center mt-4 bg-white p-3 rounded-lg shadow-inner border border-gray-200">
+                                        <span class="text-sm font-semibold text-gray-800">Costo Totale Ingredienti:</span>
+                                        <span id="totalIngredientCost" class="text-sm font-bold text-gray-700">€0.00</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-4">
+                                    <label for="sellingPrice" class="block text-sm font-medium text-gray-700">Prezzo di vendita (€, IVA inclusa):</label>
+                                    <input type="number" id="sellingPrice" step="0.01" min="0" required placeholder="0.00" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                </div>
+                                <div class="flex items-center justify-between bg-white p-3 rounded-lg shadow-inner border border-gray-200">
+                                    <span class="text-sm font-semibold text-gray-800">Prezzo netto:</span>
+                                    <span id="netSellingPrice" class="text-sm font-bold text-blue-600">€0.00</span>
+                                </div>
+
+                                <div class="flex space-x-2">
+                                    <button id="addDishBtn" type="submit" disabled class="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Aggiungi Piatto</button>
+                                    <button id="cancelEditBtn" type="button" class="hidden flex-1 bg-gray-400 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-gray-500 transition-colors">Annulla Modifiche</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <!-- Colonna destra: Lista dei piatti -->
+                    <div class="md:w-1/2">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-list-ul mr-2 text-blue-500"></i>Piatti Esistenti</h2>
+                        <div id="dishList" class="space-y-4">
+                            <p id="noDishesMessage" class="text-center text-gray-500 italic hidden">Nessun piatto ancora aggiunto.</p>
+                        </div>
+                        <button id="clearSoldDishesBtn" class="mt-6 w-full bg-red-500 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-red-600 transition-colors">Azzera Vendite</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Waste e pasti personali -->
+            <div id="waste-tab" class="tab-content hidden">
+                <div class="md:flex md:space-x-6 space-y-6 md:space-y-0">
+                    <!-- Colonna sinistra: Modulo gestione sprechi e pasti -->
+                    <div class="md:w-1/2">
+                        <!-- Modulo Gestione Sprechi -->
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200 mb-6">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-trash-alt mr-2 text-blue-500"></i>Gestione Sprechi</h2>
+                            <form id="wasteForm" class="space-y-4">
+                                <div>
+                                    <label for="wasteProductSelect" class="block text-sm font-medium text-gray-700">Prodotto:</label>
+                                    <select id="wasteProductSelect" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                        <option value="" disabled selected>Seleziona un prodotto, una ricetta o un piatto</option>
+                                    </select>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <div class="flex-1">
+                                        <label for="wasteQuantityInput" class="block text-sm font-medium text-gray-700">Quantità (kg/l/pezzo):</label>
+                                        <input type="number" id="wasteQuantityInput" required step="0.01" min="0" placeholder="0.00" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                    </div>
+                                    <div class="flex-1">
+                                        <label for="wasteCostDisplay" class="block text-sm font-medium text-gray-700">Costo:</label>
+                                        <input type="text" id="wasteCostDisplay" readonly placeholder="Costo totale" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm transition-colors bg-gray-100 text-red-600 font-bold">
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button type="submit" id="addWasteBtn" disabled class="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Aggiungi Spreco</button>
+                                    <button type="button" id="cancelWasteEditBtn" class="hidden flex-1 bg-gray-400 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-gray-500 transition-colors">Annulla Modifiche</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Modulo Pasti personali -->
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200">
+                            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-user-chef mr-2 text-blue-500"></i>Pasti personali</h2>
+                            <form id="personalMealForm" class="space-y-4">
+                                <div>
+                                    <label for="mealProductSelect" class="block text-sm font-medium text-gray-700">Prodotto:</label>
+                                    <select id="mealProductSelect" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                        <option value="" disabled selected>Seleziona un prodotto, una ricetta o un piatto</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="mealUsernameInput" class="block text-sm font-medium text-gray-700">Nome utente:</label>
+                                    <input type="text" id="mealUsernameInput" required placeholder="Inserisci il nome" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                </div>
+                                <div class="flex space-x-2">
+                                    <div class="flex-1">
+                                        <label for="mealQuantityInput" class="block text-sm font-medium text-gray-700">Quantità (kg/l/pezzo):</label>
+                                        <input type="number" id="mealQuantityInput" required step="0.01" min="0" placeholder="0.00" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white hover:bg-gray-50">
+                                    </div>
+                                    <div class="flex-1">
+                                        <label for="mealCostDisplay" class="block text-sm font-medium text-gray-700">Costo:</label>
+                                        <input type="text" id="mealCostDisplay" readonly placeholder="Costo totale" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm transition-colors bg-gray-100 text-red-600 font-bold">
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button type="submit" id="addPersonalMealBtn" disabled class="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Aggiungi Pasto Personale</button>
+                                    <button type="button" id="cancelPersonalMealEditBtn" class="hidden flex-1 bg-gray-400 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-gray-500 transition-colors">Annulla Modifiche</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Colonna destra: Liste degli sprechi e pasti -->
+                    <div class="md:w-1/2">
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-trash-list mr-2 text-blue-500"></i>Sprechi registrati</h2>
+                            <div id="wasteList" class="space-y-4">
+                                <p id="noWasteMessage" class="text-center text-gray-500 italic">Nessuno spreco ancora registrato.</p>
+                            </div>
+                            <div class="flex justify-between items-center mt-4 bg-white p-3 rounded-lg shadow-inner border border-gray-200">
+                                <span class="text-sm font-semibold text-gray-800">Totale Sprechi:</span>
+                                <span id="totalWasteCostDisplay" class="text-sm font-bold text-red-600">€0.00</span>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200 mt-6">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-history mr-2 text-blue-500"></i>Storico pasti personali</h2>
+                            <div id="personalMealsList" class="space-y-4">
+                                <p id="noPersonalMealsMessage" class="text-center text-gray-500 italic">Nessun pasto personale registrato.</p>
+                            </div>
+                            <div class="flex justify-between items-center mt-4 bg-white p-3 rounded-lg shadow-inner border border-gray-200">
+                                <span class="text-sm font-semibold text-gray-800">Totale Pasti Personali:</span>
+                                <span id="totalPersonalMealsCostDisplay" class="text-sm font-bold text-red-600">€0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Riepilogo Vendite -->
+            <div id="summary-tab" class="tab-content hidden">
+                <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200 mb-8">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-chart-line mr-2 text-blue-500"></i>Riepilogo Vendite</h2>
+                    <div class="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0 mb-4">
+                        <div class="flex-1">
+                            <label for="summaryFilter" class="block text-sm font-medium text-gray-700">Filtra per nome:</label>
+                            <input type="text" id="summaryFilter" placeholder="Cerca un piatto..." class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label for="summarySort" class="block text-sm font-medium text-gray-700">Ordina per:</label>
+                            <select id="summarySort" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <option value="sales">Vendite</option>
+                                <option value="revenue">Ricavo Netto</option>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label for="summaryOrder" class="block text-sm font-medium text-gray-700">Ordine:</label>
+                            <select id="summaryOrder" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <option value="desc">Discendente</option>
+                                <option value="asc">Ascendente</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="summaryContent" class="mt-6 space-y-4">
+                        <p class="text-center text-gray-500 italic mt-8">Nessun dato di vendita da mostrare.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modale di avviso -->
+        <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center transform transition-all scale-100">
+                <h3 id="modalTitle" class="text-lg font-bold text-gray-800 mb-2"></h3>
+                <p id="modalMessage" class="text-sm text-gray-600 mb-4"></p>
+                <button onclick="closeModal()" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors">Chiudi</button>
+            </div>
+        </div>
+
+        <!-- Contenuto PDF nascosto -->
+        <div id="pdfContent" class="p-8 hidden"></div>
+    </div>
+
+    <script>
+        let allDishes = [];
+        let allInventory = [];
+        let allRecipes = [];
+        let allWaste = [];
+        let allPersonalMeals = [];
+        let currentIngredients = [];
+        let currentRecipeIngredients = [];
+        let currentDishId = null;
+        let editingIngredientIndex = null;
+        let currentInventoryId = null;
+        let currentRecipeId = null;
+        let editingRecipeIngredientIndex = null;
+        let currentWasteId = null;
+        let currentPersonalMealId = null;
+
+        const selectors = {
+            foodCostTabBtn: '#food-cost-tab-btn',
+            summaryTabBtn: '#summary-tab-btn',
+            inventoryTabBtn: '#inventory-tab-btn',
+            wasteTabBtn: '#waste-tab-btn',
+            foodCostTab: '#food-cost-tab',
+            summaryTab: '#summary-tab',
+            inventoryTab: '#inventory-tab',
+            wasteTab: '#waste-tab',
+            dishForm: '#dishForm',
+            addIngredientBtn: '#addIngredientBtn',
+            addDishBtn: '#addDishBtn',
+            dishList: '#dishList',
+            noDishesMessage: '#noDishesMessage',
+            modal: '#modal',
+            modalTitle: '#modalTitle',
+            modalMessage: '#modalMessage',
+            ingredientsList: '#ingredientsList',
+            totalIngredientCostEl: '#totalIngredientCost',
+            sellingPriceInput: '#sellingPrice',
+            maxFoodCostInput: '#maxFoodCost',
+            netSellingPriceEl: '#netSellingPrice',
+            totalSalesEl: '#totalSales',
+            clearSoldDishesBtn: '#clearSoldDishesBtn',
+            ingredientNameSelect: '#ingredientNameSelect',
+            ingredientQuantityInput: '#ingredientQuantity',
+            ingredientUnitDisplay: '#ingredientUnitDisplay',
+            ingredientPricePerUnitDisplay: '#ingredientPricePerUnitDisplay',
+            cancelEditBtn: '#cancelEditBtn',
+            cancelIngredientEditBtn: '#cancelIngredientEditBtn',
+            totalCostOfSalesEl: '#totalCostOfSales',
+            finalFCEl: '#finalFC',
+            summaryFilterInput: '#summaryFilter',
+            summarySortSelect: '#summarySort',
+            summaryOrderSelect: '#summaryOrder',
+            summaryContent: '#summaryContent',
+            inventoryForm: '#inventoryForm',
+            inventoryProductCodeInput: '#inventoryProductCode',
+            inventorySupplierInput: '#inventorySupplier',
+            inventoryNameInput: '#inventoryName',
+            inventoryQuantityInput: '#inventoryQuantity',
+            inventoryUnitInput: '#inventoryUnit',
+            inventoryPricePerUnitInput: '#inventoryPricePerUnit',
+            inventoryNotesInput: '#inventoryNotes',
+            inventorySfridoInput: '#inventorySfrido',
+            addInventoryBtn: '#addInventoryBtn',
+            cancelInventoryEditBtn: '#cancelInventoryEditBtn',
+            inventoryList: '#inventoryList',
+            noInventoryMessage: '#noInventoryMessage',
+            recipeForm: '#recipeForm',
+            recipeNameInput: '#recipeName',
+            recipeIngredientSelect: '#recipeIngredientSelect',
+            recipeIngredientQuantityInput: '#recipeIngredientQuantity',
+            recipeIngredientUnitDisplay: '#recipeIngredientUnitDisplay',
+            recipeIngredientPricePerUnitDisplay: '#recipeIngredientPricePerUnitDisplay',
+            addRecipeIngredientBtn: '#addRecipeIngredientBtn',
+            cancelRecipeIngredientEditBtn: '#cancelRecipeIngredientEditBtn',
+            recipeIngredientsList: '#recipeIngredientsList',
+            totalRecipeCostEl: '#totalRecipeCost',
+            addRecipeBtn: '#addRecipeBtn',
+            cancelRecipeEditBtn: '#cancelRecipeEditBtn',
+            recipesList: '#recipesList',
+            noRecipesMessage: '#noRecipesMessage',
+            wasteForm: '#wasteForm',
+            wasteProductSelect: '#wasteProductSelect',
+            wasteQuantityInput: '#wasteQuantityInput',
+            wasteCostDisplay: '#wasteCostDisplay',
+            addWasteBtn: '#addWasteBtn',
+            cancelWasteEditBtn: '#cancelWasteEditBtn',
+            wasteList: '#wasteList',
+            noWasteMessage: '#noWasteMessage',
+            personalMealForm: '#personalMealForm',
+            mealProductSelect: '#mealProductSelect',
+            mealUsernameInput: '#mealUsernameInput',
+            mealQuantityInput: '#mealQuantityInput',
+            mealCostDisplay: '#mealCostDisplay',
+            addPersonalMealBtn: '#addPersonalMealBtn',
+            cancelPersonalMealEditBtn: '#cancelPersonalMealEditBtn',
+            personalMealsList: '#personalMealsList',
+            noPersonalMealsMessage: '#noPersonalMealsMessage',
+            totalWasteCostDisplay: '#totalWasteCostDisplay',
+            totalPersonalMealsCostDisplay: '#totalPersonalMealsCostDisplay',
+            totalWasteCostSummary: '#totalWasteCostSummary',
+            totalPersonalMealsCostSummary: '#totalPersonalMealsCostSummary',
+            pdfExportBtn: '#pdf-export-btn',
+            pdfContent: '#pdfContent'
+        };
+
+        const elements = {};
+        for (const key in selectors) {
+            elements[key] = document.querySelector(selectors[key]);
+        }
+        
+        // Funzione per salvare i dati nel LocalStorage
+        function saveToLocalStorage() {
+            localStorage.setItem('dishes', JSON.stringify(allDishes));
+            localStorage.setItem('inventory', JSON.stringify(allInventory));
+            localStorage.setItem('recipes', JSON.stringify(allRecipes));
+            localStorage.setItem('waste', JSON.stringify(allWaste));
+            localStorage.setItem('personalMeals', JSON.stringify(allPersonalMeals));
+            calculateTheoreticalFC();
+        }
+        
+        // Funzione per caricare i dati dal LocalStorage
+        function loadFromLocalStorage() {
+            const storedDishes = localStorage.getItem('dishes');
+            const storedInventory = localStorage.getItem('inventory');
+            const storedRecipes = localStorage.getItem('recipes');
+            const storedWaste = localStorage.getItem('waste');
+            const storedPersonalMeals = localStorage.getItem('personalMeals');
+            
+            if (storedDishes && storedInventory && storedRecipes && storedWaste && storedPersonalMeals) {
+                allDishes = JSON.parse(storedDishes);
+                allInventory = JSON.parse(storedInventory);
+                allRecipes = JSON.parse(storedRecipes);
+                allWaste = JSON.parse(storedWaste);
+                allPersonalMeals = JSON.parse(storedPersonalMeals);
+            } else {
+                allInventory = [
+                    { id: '1', productCode: 'FAR-001', name: 'Farina', supplier: 'Grano d\'Oro', quantity: 5.0, unit: 'kg', pricePerUnit: 2.50, sfridoPercentage: 0, notes: '' },
+                    { id: '2', productCode: 'MOZ-001', name: 'Mozzarella', supplier: 'Latticini Freschi', quantity: 8.0, unit: 'kg', pricePerUnit: 7.00, sfridoPercentage: 0, notes: '' },
+                    { id: '3', productCode: 'POM-001', name: 'Passata di Pomodoro', supplier: 'Orto Mio', quantity: 10.0, unit: 'kg', pricePerUnit: 2.00, sfridoPercentage: 0, notes: '' },
+                    { id: '4', productCode: 'CAR-001', name: 'Carne Tritata', supplier: 'Macelleria da Paolo', quantity: 5.0, unit: 'kg', pricePerUnit: 12.00, sfridoPercentage: 5, notes: '' },
+                    { id: '5', productCode: 'CIP-001', name: 'Cipolla', supplier: 'Orto Mio', quantity: 2.0, unit: 'kg', pricePerUnit: 1.50, sfridoPercentage: 10, notes: '' },
+                    { id: '6', productCode: 'SPC-001', name: 'Spaghetti', supplier: 'Pastaia', quantity: 15.0, unit: 'kg', pricePerUnit: 1.50, sfridoPercentage: 0, notes: '' },
+                    { id: '7', productCode: 'GUA-001', name: 'Guanciale', supplier: 'Il Salumiere', quantity: 5.0, unit: 'kg', pricePerUnit: 20.00, sfridoPercentage: 0, notes: '' },
+                    { id: '8', productCode: 'UOV-001', name: 'Uova (in kg)', supplier: 'L\'Ovaiolo', quantity: 1.5, unit: 'kg', pricePerUnit: 6.67, sfridoPercentage: 0, notes: '' },
+                    { id: '9', productCode: 'PEC-001', name: 'Pecorino Romano', supplier: 'Caseificio del Lazio', quantity: 4.0, unit: 'kg', pricePerUnit: 10.00, sfridoPercentage: 5, notes: '' },
+                    { id: '10', productCode: 'SAV-001', name: 'Savoiardi', supplier: 'Dolci Tradizioni', quantity: 2.5, unit: 'kg', pricePerUnit: 3.00, sfridoPercentage: 0, notes: '' },
+                    { id: '11', productCode: 'MAS-001', name: 'Mascarpone', supplier: 'Latticini Freschi', quantity: 3.0, unit: 'kg', pricePerUnit: 10.00, sfridoPercentage: 0, notes: '' },
+                    { id: '12', productCode: 'CAF-001', name: 'Caffè in polvere', supplier: 'Torrefazione Artigianale', quantity: 0.5, unit: 'kg', pricePerUnit: 20.00, sfridoPercentage: 0, notes: '' }
+                ];
+                allRecipes = [
+                    { id: 'R1', name: 'Ragù di Carne', ingredients: [{ name: 'Passata di Pomodoro', quantity: 0.5, unit: 'kg', cost: 1.00, type: 'ingredient' }, { name: 'Carne Tritata', quantity: 0.3, unit: 'kg', cost: 3.60, type: 'ingredient' }, { name: 'Cipolla', quantity: 0.1, unit: 'kg', cost: 0.15, type: 'ingredient' }], totalCost: 4.75, unit: 'kg', isRecipe: true },
+                    { id: 'R2', name: 'Crema al Mascarpone', ingredients: [{ name: 'Mascarpone', quantity: 0.1, unit: 'kg', cost: 1.00, type: 'ingredient' }, { name: 'Uova (in kg)', quantity: 0.12, unit: 'kg', cost: 0.80, type: 'ingredient' }, { name: 'Caffè in polvere', quantity: 0.005, unit: 'kg', cost: 0.10, type: 'ingredient' }], totalCost: 1.90, unit: 'kg', isRecipe: true }
+                ];
+                allDishes = [
+                    { id: 'D1', dishName: 'Pizza Margherita', sellingPrice: 8.50, totalCost: 1.50, hypotheticalSales: 5, ingredients: JSON.stringify([{ name: 'Farina', quantity: 0.200, unit: 'kg', cost: 0.50, type: 'ingredient' }, { name: 'Passata di Pomodoro', quantity: 0.150, unit: 'kg', cost: 0.30, type: 'ingredient' }, { name: 'Mozzarella', quantity: 0.100, unit: 'kg', cost: 0.70, type: 'ingredient' }]) },
+                    { id: 'D2', dishName: 'Spaghetti al Ragù', sellingPrice: 15.00, totalCost: 5.50, hypotheticalSales: 8, ingredients: JSON.stringify([{ name: 'Spaghetti', quantity: 0.100, unit: 'kg', cost: 0.15, type: 'ingredient' }, { name: 'Ragù di Carne', quantity: 0.200, unit: 'kg', cost: 0.95, type: 'recipe' }]) },
+                    { id: 'D3', dishName: 'Tiramisù', sellingPrice: 6.00, totalCost: 1.20, hypotheticalSales: 3, ingredients: JSON.stringify([{ name: 'Savoiardi', quantity: 0.100, unit: 'kg', cost: 0.30, type: 'ingredient' }, { name: 'Crema al Mascarpone', quantity: 0.150, unit: 'kg', cost: 0.285, type: 'recipe' }]) }
+                ];
+                allWaste = [];
+                allPersonalMeals = [];
+                saveToLocalStorage();
+            }
+            renderAllDishes();
+            renderInventoryList();
+            renderRecipesList();
+            populateIngredientSelects();
+            renderWasteList();
+            renderPersonalMealsList();
+        }
+        
+        // Gestione delle Tab
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId + '-btn').classList.add('active');
+        }
+
+        // Gestione della Modale di avviso
+        function showModal(title, message) {
+            elements.modalTitle.textContent = title;
+            elements.modalMessage.textContent = message;
+            elements.modal.classList.remove('hidden');
+            elements.modal.classList.add('flex');
+        }
+        window.closeModal = () => {
+            elements.modal.classList.add('hidden');
+            elements.modal.classList.remove('flex');
+        };
+        
+        // Funzioni per il calcolo del Food Cost
+        function analyzeDish(cost, price, maxFoodCost) {
+            const netPrice = price / 1.10;
+            const foodCost = netPrice > 0 ? (cost / netPrice) * 100 : 0;
+            let status = '';
+            let suggestion = '';
+            let color = '';
+
+            if (foodCost <= maxFoodCost) {
+                status = 'Profittevole';
+                color = 'text-green-600';
+                suggestion = 'Questo piatto rispetta la tua soglia di food cost. Ottimo lavoro!';
+            } else {
+                status = 'Non Profittevole';
+                color = 'text-red-600';
+                suggestion = `Il food cost di questo piatto (${foodCost.toFixed(2)}%) supera la tua soglia (${maxFoodCost}%). Considera di rivedere i costi o il prezzo.`;
+            }
+            return { foodCost, status, suggestion, color };
+        }
+
+        function updateTotalCost() {
+            const totalCost = currentIngredients.reduce((sum, ing) => sum + parseFloat(ing.cost), 0);
+            elements.totalIngredientCostEl.textContent = `€${totalCost.toFixed(2)}`;
+        }
+
+        function updateNetPrice() {
+            const sellingPrice = parseFloat(elements.sellingPriceInput.value);
+            if (!isNaN(sellingPrice) && sellingPrice > 0) {
+                const netPrice = sellingPrice / 1.10;
+                elements.netSellingPriceEl.textContent = `€${netPrice.toFixed(2)}`;
+            } else {
+                elements.netSellingPriceEl.textContent = '€0.00';
+            }
+        }
+        
+        function toggleAddDishButtonState() {
+            const dishName = elements.dishForm.querySelector('#dishName').value.trim();
+            const sellingPrice = parseFloat(elements.sellingPriceInput.value);
+            const isFormValid = dishName !== '' && !isNaN(sellingPrice) && sellingPrice > 0 && currentIngredients.length > 0;
+            elements.addDishBtn.disabled = !isFormValid;
+        }
+
+        function calculateTheoreticalFC() {
+            let totalCostOfAllSales = 0;
+            let totalGrossSales = 0;
+            
+            allDishes.forEach(dish => {
+                const salesCount = dish.hypotheticalSales || 0;
+                if (salesCount > 0) {
+                    totalCostOfAllSales += dish.totalCost * salesCount;
+                    totalGrossSales += dish.sellingPrice * salesCount;
+                }
+            });
+            
+            const totalWasteCost = allWaste.reduce((sum, waste) => sum + Math.abs(waste.cost), 0);
+            const totalPersonalMealCost = allPersonalMeals.reduce((sum, meal) => sum + meal.cost, 0);
+            const finalTotalCost = totalCostOfAllSales + totalWasteCost + totalPersonalMealCost;
+
+            if (elements.totalCostOfSalesEl) elements.totalCostOfSalesEl.textContent = `€${finalTotalCost.toFixed(2)}`;
+            if (elements.totalWasteCostSummary) elements.totalWasteCostSummary.textContent = `€${totalWasteCost.toFixed(2)}`;
+            if (elements.totalPersonalMealsCostSummary) elements.totalPersonalMealsCostSummary.textContent = `€${totalPersonalMealCost.toFixed(2)}`;
+            
+            const totalNetSales = totalGrossSales / 1.10;
+            if (elements.totalSalesEl) elements.totalSalesEl.innerHTML = `€${totalGrossSales.toFixed(2)} / €${totalNetSales.toFixed(2)}`;
+            
+            if (totalNetSales > 0) {
+                const weightedAverageFC = (finalTotalCost / totalNetSales) * 100;
+                if (elements.finalFCEl) elements.finalFCEl.textContent = `${weightedAverageFC.toFixed(2)}%`;
+            } else {
+                let totalFoodCostPercentage = 0;
+                let validDishesCount = 0;
+                allDishes.forEach(dish => {
+                    const netPrice = dish.sellingPrice / 1.10;
+                    if (netPrice > 0) {
+                        totalFoodCostPercentage += (dish.totalCost / netPrice) * 100;
+                        validDishesCount++;
+                    }
+                });
+
+                if (validDishesCount > 0) {
+                    const simpleAverageFC = totalFoodCostPercentage / validDishesCount;
+                    if (elements.finalFCEl) elements.finalFCEl.textContent = `${simpleAverageFC.toFixed(2)}%`;
+                } else {
+                    if (elements.finalFCEl) elements.finalFCEl.textContent = '--%';
+                }
+            }
+        }
+
+        // Funzioni per l'Inventario, Ricette, Piatti, Sprechi e Pasti
+        function getAdjustedPricePerUnit(item) {
+            const sfrido = parseFloat(item.sfridoPercentage) || 0;
+            if (sfrido >= 100) return Infinity; // Previene divisione per zero
+            return item.pricePerUnit / (1 - sfrido / 100);
+        }
+
+        function getInventoryStatusIcon(ingredientName, quantityNeeded, allInventory) {
+            const inventoryItem = allInventory.find(item => item.name === ingredientName);
+            if (!inventoryItem) {
+                return `<i class="fas fa-exclamation-triangle text-red-500" title="Ingrediente non trovato in magazzino."></i>`;
+            }
+            const usableQuantity = parseFloat(inventoryItem.quantity) * (1 - (parseFloat(inventoryItem.sfridoPercentage) || 0) / 100);
+            const lowStockThreshold = usableQuantity * 0.1;
+            
+            if (usableQuantity < quantityNeeded) {
+                return `<i class="fas fa-times-circle text-red-500" title="Scorte insufficienti! Mancano ${(quantityNeeded - usableQuantity).toFixed(2)} ${inventoryItem.unit}."></i>`;
+            } else if (usableQuantity <= lowStockThreshold) {
+                return `<i class="fas fa-exclamation-triangle text-yellow-500" title="Scorte in esaurimento. Rimangono ${usableQuantity.toFixed(2)} ${inventoryItem.unit}."></i>`;
+            } else {
+                return `<i class="fas fa-check-circle text-green-500" title="Scorte sufficienti."></i>`;
+            }
+        }
+
+        function renderAllDishes() {
+            const maxFoodCost = parseFloat(elements.maxFoodCostInput.value);
+            elements.dishList.innerHTML = '';
+            
+            if (allDishes.length === 0) {
+                elements.noDishesMessage.classList.remove('hidden');
+            } else {
+                elements.noDishesMessage.classList.add('hidden');
+                allDishes.forEach((dish) => {
+                    const ingredients = JSON.parse(dish.ingredients);
+                    const analysis = analyzeDish(dish.totalCost, dish.sellingPrice, maxFoodCost);
+                    const ingredientDetails = ingredients.map(ing => {
+                        const statusIcon = getInventoryStatusIcon(ing.name, ing.quantity, allInventory);
+                        return `
+                            <li class="flex flex-col space-y-1 bg-gray-50 p-2 rounded-lg shadow-sm border border-gray-200">
+                                <div class="flex justify-between items-center text-xs">
+                                    <p class="font-medium text-gray-700 flex items-center">${ing.name} (${ing.quantity} ${ing.unit}) ${statusIcon}</p>
+                                    <p class="text-gray-500">Costo: €${parseFloat(ing.cost).toFixed(2)}</p>
+                                </div>
+                            </li>
+                        `;
+                    }).join('');
+
+                    const dishItem = document.createElement('div');
+                    dishItem.classList.add('bg-white', 'p-4', 'rounded-xl', 'shadow-md', 'space-y-4', 'border', 'border-gray-200');
+                    dishItem.setAttribute('data-id', dish.id);
+                    dishItem.innerHTML = `
+                        <details class="group">
+                            <summary class="flex justify-between items-center cursor-pointer list-none py-2 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+                                <span class="text-sm font-bold text-gray-900 truncate">${dish.dishName}</span>
+                                <div class="flex items-center space-x-2 flex-shrink-0">
+                                    <input type="number" value="${dish.hypotheticalSales || 0}"
+                                        class="w-24 p-1 text-right border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 text-sm hypothetical-sales-input"
+                                        data-dish-id="${dish.id}" step="1" min="0">
+                                    <span class="text-sm font-semibold ${analysis.color} flex items-center">${analysis.foodCost.toFixed(2)}% <i class="fas fa-chart-pie ml-1 ${analysis.color}"></i></span>
+                                    <button type="button" class="edit-dish-btn text-blue-500 hover:text-blue-700 transition-colors duration-200 focus:outline-none ml-2" data-id="${dish.id}"><i class="fas fa-pencil-alt"></i></button>
+                                    <button type="button" class="remove-dish-btn text-red-500 hover:text-red-700 transition-colors duration-200 focus:outline-none" data-id="${dish.id}">&times;</button>
+                                </div>
+                            </summary>
+                            <div class="mt-4 p-4 space-y-2 text-sm text-gray-600 bg-white rounded-lg shadow-inner">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <p class="flex items-center"><i class="fas fa-euro-sign mr-2 text-blue-500"></i>Costo: €${dish.totalCost.toFixed(2)}</p>
+                                    <p class="flex items-center"><i class="fas fa-tags mr-2 text-purple-500"></i>Prezzo netto: €${(dish.sellingPrice / 1.10).toFixed(2)} (Vendita: €${dish.sellingPrice.toFixed(2)})</p>
+                                </div>
+                                <p class="text-sm font-semibold ${analysis.color} flex items-center"><i class="fas fa-fire mr-2 ${analysis.color}"></i>Stato: ${analysis.status}</p>
+                                <p class="text-xs text-gray-500 italic flex items-center"><i class="fas fa-lightbulb mr-2 text-yellow-500"></i>${analysis.suggestion}</p>
+                                <div class="pt-2 mt-2 border-t border-gray-200">
+                                    <h4 class="text-xs font-semibold text-gray-700 mb-1">Dettaglio ingredienti:</h4>
+                                    <ul class="space-y-1">${ingredientDetails}</ul>
+                                </div>
+                            </div>
+                        </details>
+                    `;
+                    elements.dishList.appendChild(dishItem);
+                });
+                
+                elements.dishList.querySelectorAll('.hypothetical-sales-input').forEach(input => {
+                    input.addEventListener('input', (event) => {
+                        const dishId = event.target.getAttribute('data-dish-id');
+                        let value = parseInt(event.target.value);
+                        if (isNaN(value) || value < 0) value = 0;
+                        
+                        const dishToUpdate = allDishes.find(d => d.id === dishId);
+                        if (dishToUpdate) {
+                            dishToUpdate.hypotheticalSales = value;
+                            saveToLocalStorage();
+                        }
+                    });
+                });
+                elements.dishList.querySelectorAll('.remove-dish-btn').forEach(button => {
+                    button.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const dishId = event.currentTarget.getAttribute('data-id');
+                        removeDish(dishId);
+                    });
+                });
+                elements.dishList.querySelectorAll('.edit-dish-btn').forEach(button => {
+                    button.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const dishId = event.currentTarget.getAttribute('data-id');
+                        editDish(dishId);
+                    });
+                });
+            }
+            calculateTheoreticalFC();
+        }
+
+        function renderSummary() {
+            if (!elements.summaryContent) return;
+            
+            const filterText = elements.summaryFilterInput.value.toLowerCase();
+            const sortBy = elements.summarySortSelect.value;
+            const orderBy = elements.summaryOrderSelect.value;
+
+            let filteredAndSortedDishes = [...allDishes];
+
+            filteredAndSortedDishes = filteredAndSortedDishes.filter(dish =>
+                dish.dishName.toLowerCase().includes(filterText)
+            );
+
+            filteredAndSortedDishes.sort((a, b) => {
+                let aValue = sortBy === 'sales' ? (a.hypotheticalSales || 0) : ((a.sellingPrice / 1.10) * (a.hypotheticalSales || 0));
+                let bValue = sortBy === 'sales' ? (b.hypotheticalSales || 0) : ((b.sellingPrice / 1.10) * (b.hypotheticalSales || 0));
+
+                if (orderBy === 'asc') {
+                    return aValue - bValue;
+                } else {
+                    return bValue - aValue;
+                }
+            });
+
+            const totalSalesCount = filteredAndSortedDishes.reduce((sum, dish) => sum + (dish.hypotheticalSales || 0), 0);
+            const totalNetRevenue = filteredAndSortedDishes.reduce((sum, dish) => sum + ((dish.sellingPrice / 1.10) * (dish.hypotheticalSales || 0)), 0);
+
+            if (filteredAndSortedDishes.length === 0 || totalSalesCount === 0) {
+                elements.summaryContent.innerHTML = `<p class="text-center text-gray-500 italic mt-8">Nessun dato di vendita da mostrare per i filtri selezionati.</p>`;
+                return;
+            }
+
+            const maxSales = Math.max(...filteredAndSortedDishes.map(d => d.hypotheticalSales || 0));
+
+            const chartHtml = filteredAndSortedDishes.map(dish => {
+                const sales = dish.hypotheticalSales || 0;
+                const barWidth = maxSales > 0 ? (sales / maxSales) * 100 : 0;
+                const netRevenue = (dish.sellingPrice / 1.10) * sales;
+                const percentageOfTotal = totalNetRevenue > 0 ? (netRevenue / totalNetRevenue) * 100 : 0;
+                return `
+                    <div class="flex items-center space-x-4 mb-2">
+                        <p class="text-sm font-semibold text-gray-700 w-1/3 truncate">${dish.dishName}</p>
+                        <div class="relative w-1/3 bg-gray-200 rounded-full h-4">
+                            <div class="absolute inset-0 bg-blue-500 rounded-full h-4 transition-all duration-500" style="width: ${barWidth}%;"></div>
+                            <span class="absolute top-0 right-1 text-xs font-bold text-gray-800">${sales}</span>
+                        </div>
+                        <span class="text-sm font-bold text-gray-800 w-1/3 text-right">€${netRevenue.toFixed(2)} <span class="text-gray-500 font-normal">(${percentageOfTotal.toFixed(2)}%)</span></span>
+                    </div>
+                `;
+            }).join('');
+
+            elements.summaryContent.innerHTML = `
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Vendite per Prodotto</h3>
+                <div>${chartHtml}</div>
+            `;
+        }
+
+        elements.summaryFilterInput.addEventListener('input', renderSummary);
+        elements.summarySortSelect.addEventListener('change', renderSummary);
+        elements.summaryOrderSelect.addEventListener('change', renderSummary);
+
+        function removeDish(dishId) {
+            allDishes = allDishes.filter(d => d.id !== dishId);
+            saveToLocalStorage();
+            renderAllDishes();
+        }
+
+        function editDish(dishId) {
+            const dishToEdit = allDishes.find(dish => dish.id === dishId);
+            if (!dishToEdit) return;
+
+            elements.dishForm.querySelector('#dishName').value = dishToEdit.dishName;
+            elements.sellingPriceInput.value = dishToEdit.sellingPrice;
+            
+            const ingredients = JSON.parse(dishToEdit.ingredients);
+            currentIngredients = [...ingredients];
+
+            renderIngredientsList();
+            
+            currentDishId = dishId;
+            elements.addDishBtn.textContent = 'Salva modifiche';
+            elements.addDishBtn.classList.remove('bg-blue-600');
+            elements.addDishBtn.classList.add('bg-green-600');
+            updateTotalCost();
+            toggleAddDishButtonState();
+            updateNetPrice();
+            elements.cancelEditBtn.classList.remove('hidden');
+        }
+
+        function resetDishForm() {
+            elements.dishForm.reset();
+            currentIngredients = [];
+            elements.ingredientsList.innerHTML = '';
+            updateTotalCost();
+            toggleAddDishButtonState();
+            updateNetPrice();
+            currentDishId = null;
+            elements.addDishBtn.textContent = 'Aggiungi Piatto';
+            elements.addDishBtn.classList.remove('bg-green-600');
+            elements.addDishBtn.classList.add('bg-blue-600');
+            elements.cancelEditBtn.classList.add('hidden');
+        }
+
+        function renderIngredientsList() {
+            if (!elements.ingredientsList) return;
+            elements.ingredientsList.innerHTML = '';
+            currentIngredients.forEach((ingredient, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="flex justify-between items-center text-sm bg-white p-2 rounded-lg shadow-sm border border-gray-200 cursor-pointer">
+                        <p class="font-medium text-gray-700">${ingredient.name} (${ingredient.quantity} ${ingredient.unit}) - €${parseFloat(ingredient.cost).toFixed(2)}</p>
+                        <div class="flex space-x-2">
+                            <button type="button" class="edit-ingredient-btn text-blue-500 hover:text-blue-700" data-index="${index}"><i class="fas fa-pencil-alt"></i></button>
+                            <button type="button" class="remove-ingredient-btn text-red-500 hover:text-red-700" data-index="${index}">&times;</button>
+                        </div>
+                    </div>
+                `;
+                elements.ingredientsList.appendChild(li);
+            });
+            
+            elements.ingredientsList.querySelectorAll('.edit-ingredient-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = e.currentTarget.dataset.index;
+                    const ingToEdit = currentIngredients[index];
+                    elements.ingredientNameSelect.value = ingToEdit.name;
+                    elements.ingredientQuantityInput.value = ingToEdit.quantity;
+                    const item = allInventory.find(i => i.name === ingToEdit.name) || allRecipes.find(r => r.name === ingToEdit.name);
+                    if (item) {
+                        elements.ingredientUnitDisplay.value = item.unit;
+                        elements.ingredientPricePerUnitDisplay.value = item.isRecipe ? item.totalCost : getAdjustedPricePerUnit(item);
+                    }
+                    
+                    editingIngredientIndex = index;
+                    elements.addIngredientBtn.textContent = 'Salva modifiche';
+                    elements.addIngredientBtn.classList.remove('bg-blue-500');
+                    elements.addIngredientBtn.classList.add('bg-green-600');
+                    elements.cancelIngredientEditBtn.classList.remove('hidden');
+                    elements.ingredientNameSelect.focus();
+                });
+            });
+            elements.ingredientsList.querySelectorAll('.remove-ingredient-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = e.currentTarget.dataset.index;
+                    currentIngredients.splice(index, 1);
+                    renderIngredientsList();
+                    updateTotalCost();
+                    toggleAddDishButtonState();
+                });
+            });
+        }
+
+        function removeInventoryItem(id) {
+            allInventory = allInventory.filter(item => item.id !== id);
+            saveToLocalStorage();
+            renderInventoryList();
+            renderRecipesList();
+            populateIngredientSelects();
+        }
+        
+        function removeRecipe(id) {
+            allRecipes = allRecipes.filter(recipe => recipe.id !== id);
+            saveToLocalStorage();
+            renderRecipesList();
+            populateIngredientSelects();
+        }
+        
+        function editInventoryItem(id) {
+            const itemToEdit = allInventory.find(item => item.id === id);
+            if (!itemToEdit) return;
+            
+            elements.inventoryProductCodeInput.value = itemToEdit.productCode;
+            elements.inventoryNameInput.value = itemToEdit.name;
+            elements.inventorySupplierInput.value = itemToEdit.supplier;
+            elements.inventoryNotesInput.value = itemToEdit.notes;
+            elements.inventoryQuantityInput.value = itemToEdit.quantity;
+            elements.inventoryUnitInput.value = itemToEdit.unit;
+            elements.inventoryPricePerUnitInput.value = itemToEdit.pricePerUnit;
+            elements.inventorySfridoInput.value = itemToEdit.sfridoPercentage;
+            
+            currentInventoryId = id;
+            elements.addInventoryBtn.textContent = 'Salva modifiche';
+            elements.addInventoryBtn.classList.remove('bg-blue-600');
+            elements.addInventoryBtn.classList.add('bg-green-600');
+            elements.cancelInventoryEditBtn.classList.remove('hidden');
+            elements.inventoryProductCodeInput.focus();
+        }
+
+        function resetInventoryForm() {
+            elements.inventoryForm.reset();
+            currentInventoryId = null;
+            elements.addInventoryBtn.textContent = 'Aggiungi Prodotto';
+            elements.addInventoryBtn.classList.remove('bg-green-600');
+            elements.addInventoryBtn.classList.add('bg-blue-600');
+            elements.cancelInventoryEditBtn.classList.add('hidden');
+        }
+
+        elements.inventoryForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const productCode = elements.inventoryProductCodeInput.value.trim();
+            const name = elements.inventoryNameInput.value.trim();
+            const supplier = elements.inventorySupplierInput.value.trim();
+            const notes = elements.inventoryNotesInput.value.trim();
+            const quantity = parseFloat(elements.inventoryQuantityInput.value);
+            const unit = elements.inventoryUnitInput.value;
+            const pricePerUnit = parseFloat(elements.inventoryPricePerUnitInput.value);
+            const sfridoPercentage = parseFloat(elements.inventorySfridoInput.value);
+
+            if (!productCode || !name || isNaN(quantity) || quantity <= 0 || isNaN(pricePerUnit) || pricePerUnit <= 0 || isNaN(sfridoPercentage) || sfridoPercentage < 0 || sfridoPercentage >= 100) {
+                showModal('Errore di input', 'Per favore, inserisci tutti i dettagli del prodotto con valori validi. La percentuale di sfrido deve essere compresa tra 0 e 99.');
+                return;
+            }
+            
+            const inventoryData = {
+                id: currentInventoryId || Date.now().toString(),
+                productCode,
+                name,
+                supplier,
+                notes,
+                quantity,
+                unit,
+                pricePerUnit,
+                sfridoPercentage
+            };
+
+            if (currentInventoryId) {
+                const itemIndex = allInventory.findIndex(item => item.id === currentInventoryId);
+                if (itemIndex !== -1) {
+                    allInventory[itemIndex] = inventoryData;
+                }
+            } else {
+                allInventory.push(inventoryData);
+            }
+            saveToLocalStorage();
+            resetInventoryForm();
+            renderInventoryList();
+            populateIngredientSelects();
+        });
+        
+        elements.cancelInventoryEditBtn.addEventListener('click', resetInventoryForm);
+
+        function renderInventoryList() {
+            if (!elements.inventoryList) return;
+            elements.inventoryList.innerHTML = '';
+            
+            if (allInventory.length === 0) {
+                elements.noInventoryMessage.classList.remove('hidden');
+            } else {
+                elements.noInventoryMessage.classList.add('hidden');
+                allInventory.forEach(item => {
+                    const inventoryItem = document.createElement('div');
+                    inventoryItem.classList.add('bg-white', 'p-4', 'rounded-xl', 'shadow-md', 'space-y-4', 'border', 'border-gray-200');
+                    inventoryItem.setAttribute('data-id', item.id);
+                    inventoryItem.innerHTML = `
+                        <details class="group">
+                            <summary class="flex justify-between items-center cursor-pointer list-none py-2 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-bold text-gray-900 truncate">${item.name}</p>
+                                    <p class="text-xs text-gray-500 italic">Quantità: ${item.quantity} ${item.unit} | Costo/${item.unit} (netto sfrido): €${getAdjustedPricePerUnit(item).toFixed(2)}</p>
+                                </div>
+                                <div class="flex items-center space-x-2 ml-4">
+                                    <button type="button" class="edit-inventory-btn text-blue-500 hover:text-blue-700 transition-colors duration-200 focus:outline-none" data-id="${item.id}"><i class="fas fa-pencil-alt"></i></button>
+                                    <button type="button" class="remove-inventory-btn text-red-500 hover:text-red-700 transition-colors duration-200 focus:outline-none" data-id="${item.id}">&times;</button>
+                                    <i class="fas fa-chevron-down text-gray-400 transform group-open:rotate-180 transition-transform duration-200"></i>
+                                </div>
+                            </summary>
+                            <div class="mt-4 p-4 space-y-2 text-xs text-gray-600 bg-white rounded-lg shadow-inner">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <p>Codice: <span class="font-semibold">${item.productCode}</span></p>
+                                    <p>Fornitore: <span class="font-semibold">${item.supplier}</span></p>
+                                    <p>Sfrido: <span class="font-semibold">${item.sfridoPercentage}%</span></p>
+                                    <p>Costo/Unità (lordo): <span class="font-semibold">€${item.pricePerUnit.toFixed(2)}</span></p>
+                                    ${item.notes ? `<p class="sm:col-span-2">Note: <span class="font-semibold">${item.notes}</span></p>` : ''}
+                                </div>
+                            </div>
+                        </details>
+                    `;
+                    elements.inventoryList.appendChild(inventoryItem);
+                });
+                
+                elements.inventoryList.querySelectorAll('.edit-inventory-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = e.currentTarget.dataset.id;
+                        editInventoryItem(id);
+                    });
+                });
+                elements.inventoryList.querySelectorAll('.remove-inventory-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = e.currentTarget.dataset.id;
+                        removeInventoryItem(id);
+                    });
+                });
+            }
+        }
+        
+        function renderRecipesList() {
+            if (!elements.recipesList) return;
+            elements.recipesList.innerHTML = '';
+            
+            if (allRecipes.length === 0) {
+                elements.noRecipesMessage.classList.remove('hidden');
+            } else {
+                elements.noRecipesMessage.classList.add('hidden');
+                allRecipes.forEach(recipe => {
+                    const recipeItem = document.createElement('div');
+                    recipeItem.classList.add('bg-white', 'p-4', 'rounded-xl', 'shadow-md', 'space-y-4', 'border', 'border-gray-200');
+                    recipeItem.setAttribute('data-id', recipe.id);
+                    recipeItem.innerHTML = `
+                        <details class="group">
+                            <summary class="flex justify-between items-center cursor-pointer list-none py-2 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+                                <span class="text-sm font-bold text-gray-900 truncate">${recipe.name}</span>
+                                <div class="flex items-center space-x-2 flex-shrink-0">
+                                    <span class="text-sm font-semibold text-blue-600 flex items-center">Costo: €${recipe.totalCost.toFixed(2)}</span>
+                                    <button type="button" class="edit-recipe-btn text-blue-500 hover:text-blue-700 transition-colors duration-200 focus:outline-none ml-2" data-id="${recipe.id}"><i class="fas fa-pencil-alt"></i></button>
+                                    <button type="button" class="remove-recipe-btn text-red-500 hover:text-red-700 transition-colors duration-200 focus:outline-none" data-id="${recipe.id}">&times;</button>
+                                </div>
+                            </summary>
+                            <div class="mt-4 p-4 space-y-2 text-xs text-gray-600 bg-white rounded-lg shadow-inner">
+                                <h4 class="font-semibold text-gray-700 mb-1">Ingredienti:</h4>
+                                <ul class="space-y-1">
+                                    ${recipe.ingredients.map(ing => `
+                                        <li class="flex justify-between">
+                                            <span>${ing.name} (${ing.quantity} ${ing.unit})</span>
+                                            <span class="text-gray-500">€${ing.cost.toFixed(2)}</span>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        </details>
+                    `;
+                    elements.recipesList.appendChild(recipeItem);
+                });
+                
+                elements.recipesList.querySelectorAll('.edit-recipe-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        editRecipe(id);
+                    });
+                });
+                
+                elements.recipesList.querySelectorAll('.remove-recipe-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        removeRecipe(id);
+                    });
+                });
+            }
+        }
+
+        elements.addIngredientBtn.addEventListener('click', () => {
+            const selectedItemName = elements.ingredientNameSelect.value.trim();
+            const quantity = parseFloat(elements.ingredientQuantityInput.value);
+            
+            if (!selectedItemName || isNaN(quantity) || quantity <= 0) {
+                showModal('Errore', 'Per favore, seleziona un ingrediente e inserisci una quantità valida.');
+                return;
+            }
+            
+            const selectedItem = allInventory.find(item => item.name === selectedItemName) || allRecipes.find(item => item.name === selectedItemName);
+            const cost = selectedItem.isRecipe ? (selectedItem.totalCost * quantity) : (getAdjustedPricePerUnit(selectedItem) * quantity);
+            const type = selectedItem.isRecipe ? 'recipe' : 'ingredient';
+
+            const ingredient = { name: selectedItemName, quantity, unit: selectedItem.unit, cost: cost, type: type };
+
+            if (editingIngredientIndex === null) {
+                currentIngredients.push(ingredient);
+            } else {
+                currentIngredients[editingIngredientIndex] = ingredient;
+                editingIngredientIndex = null;
+                elements.addIngredientBtn.textContent = 'Aggiungi ingrediente';
+                elements.addIngredientBtn.classList.remove('bg-green-600');
+                elements.addIngredientBtn.classList.add('bg-blue-500');
+                elements.cancelIngredientEditBtn.classList.add('hidden');
+            }
+
+            elements.ingredientNameSelect.value = '';
+            elements.ingredientQuantityInput.value = '';
+            elements.ingredientUnitDisplay.value = '';
+            elements.ingredientPricePerUnitDisplay.value = '';
+            elements.ingredientNameSelect.focus();
+
+            renderIngredientsList();
+            updateTotalCost();
+            toggleAddDishButtonState();
+        });
+
+        elements.dishForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const dishName = elements.dishForm.querySelector('#dishName').value.trim();
+            const sellingPrice = parseFloat(elements.sellingPriceInput.value);
+            const totalCost = currentIngredients.reduce((sum, ing) => sum + parseFloat(ing.cost), 0);
+            
+            if (totalCost <= 0) {
+                showModal('Errore di input', 'Per favore, aggiungi almeno un ingrediente per il piatto.');
+                return;
+            }
+            
+            const dishData = {
+                id: currentDishId || Date.now().toString(),
+                dishName,
+                sellingPrice,
+                totalCost,
+                hypotheticalSales: 0,
+                ingredients: JSON.stringify(currentIngredients)
+            };
+
+            if (currentDishId) {
+                const dishIndex = allDishes.findIndex(d => d.id === currentDishId);
+                if (dishIndex !== -1) {
+                    allDishes[dishIndex] = dishData;
+                }
+            } else {
+                allDishes.push(dishData);
+            }
+
+            saveToLocalStorage();
+            resetDishForm();
+            renderAllDishes();
+            showTab('food-cost-tab');
+        });
+
+        elements.cancelEditBtn.addEventListener('click', resetDishForm);
+        
+        elements.cancelIngredientEditBtn.addEventListener('click', () => {
+            editingIngredientIndex = null;
+            elements.ingredientNameSelect.value = '';
+            elements.ingredientQuantityInput.value = '';
+            elements.ingredientUnitDisplay.value = '';
+            elements.ingredientPricePerUnitDisplay.value = '';
+            elements.addIngredientBtn.textContent = 'Aggiungi ingrediente';
+            elements.addIngredientBtn.classList.remove('bg-green-600');
+            elements.addIngredientBtn.classList.add('bg-blue-500');
+            elements.cancelIngredientEditBtn.classList.add('hidden');
+        });
+        
+        elements.sellingPriceInput.addEventListener('input', updateNetPrice);
+        elements.sellingPriceInput.addEventListener('input', toggleAddDishButtonState);
+        elements.maxFoodCostInput.addEventListener('input', renderAllDishes);
+        elements.dishForm.querySelector('#dishName').addEventListener('input', toggleAddDishButtonState);
+
+        elements.clearSoldDishesBtn.addEventListener('click', () => {
+            allDishes.forEach(dish => {
+                dish.hypotheticalSales = 0;
+            });
+            saveToLocalStorage();
+            renderAllDishes();
+        });
+
+        // Funzioni e logica per la gestione delle Ricette
+        function resetRecipeForm() {
+            elements.recipeForm.reset();
+            currentRecipeIngredients = [];
+            elements.recipeIngredientsList.innerHTML = '';
+            elements.totalRecipeCostEl.textContent = '€0.00';
+            elements.addRecipeBtn.disabled = true;
+            currentRecipeId = null;
+            elements.addRecipeBtn.textContent = 'Aggiungi Ricetta';
+            elements.addRecipeBtn.classList.remove('bg-green-600');
+            elements.addRecipeBtn.classList.add('bg-blue-600');
+            elements.cancelRecipeEditBtn.classList.add('hidden');
+        }
+        
+        function updateRecipeCost() {
+            const totalCost = currentRecipeIngredients.reduce((sum, ing) => sum + parseFloat(ing.cost), 0);
+            elements.totalRecipeCostEl.textContent = `€${totalCost.toFixed(2)}`;
+            elements.addRecipeBtn.disabled = totalCost <= 0 || elements.recipeNameInput.value.trim() === '';
+        }
+
+        function renderRecipeIngredientsList() {
+            if (!elements.recipeIngredientsList) return;
+            elements.recipeIngredientsList.innerHTML = '';
+            currentRecipeIngredients.forEach((ingredient, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="flex justify-between items-center text-sm bg-white p-2 rounded-lg shadow-sm border border-gray-200 cursor-pointer">
+                        <p class="font-medium text-gray-700">${ingredient.name} (${ingredient.quantity} ${ingredient.unit}) - €${parseFloat(ingredient.cost).toFixed(2)}</p>
+                        <div class="flex space-x-2">
+                            <button type="button" class="edit-recipe-ingredient-btn text-blue-500 hover:text-blue-700" data-index="${index}"><i class="fas fa-pencil-alt"></i></button>
+                            <button type="button" class="remove-recipe-ingredient-btn text-red-500 hover:text-red-700" data-index="${index}">&times;</button>
+                        </div>
+                    </div>
+                `;
+                elements.recipeIngredientsList.appendChild(li);
+            });
+            
+            elements.recipeIngredientsList.querySelectorAll('.edit-recipe-ingredient-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = e.currentTarget.dataset.index;
+                    const ingToEdit = currentRecipeIngredients[index];
+                    elements.recipeIngredientSelect.value = ingToEdit.name;
+                    elements.recipeIngredientQuantityInput.value = ingToEdit.quantity;
+                    const inventoryItem = allInventory.find(item => item.name === ingToEdit.name);
+                    if (inventoryItem) {
+                        elements.recipeIngredientUnitDisplay.value = inventoryItem.unit;
+                        elements.recipeIngredientPricePerUnitDisplay.value = getAdjustedPricePerUnit(inventoryItem);
+                    }
+                    editingRecipeIngredientIndex = index;
+                    elements.addRecipeIngredientBtn.textContent = 'Salva modifiche';
+                    elements.addRecipeIngredientBtn.classList.remove('bg-blue-500');
+                    elements.addRecipeIngredientBtn.classList.add('bg-green-600');
+                    elements.cancelRecipeIngredientEditBtn.classList.remove('hidden');
+                    elements.recipeIngredientSelect.focus();
+                });
+            });
+
+            elements.recipeIngredientsList.querySelectorAll('.remove-recipe-ingredient-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = e.currentTarget.dataset.index;
+                    currentRecipeIngredients.splice(index, 1);
+                    renderRecipeIngredientsList();
+                    updateRecipeCost();
+                });
+            });
+        }
+        
+        elements.addRecipeIngredientBtn.addEventListener('click', () => {
+            const name = elements.recipeIngredientSelect.value.trim();
+            const quantity = parseFloat(elements.recipeIngredientQuantityInput.value);
+            const inventoryItem = allInventory.find(item => item.name === name);
+
+            if (!name || isNaN(quantity) || quantity <= 0 || !inventoryItem) {
+                showModal('Errore', 'Per favore, seleziona un ingrediente valido e inserisci una quantità.');
+                return;
+            }
+
+            const cost = quantity * getAdjustedPricePerUnit(inventoryItem);
+            const ingredient = { name, quantity, unit: inventoryItem.unit, cost: cost, type: 'ingredient' };
+
+            if (editingRecipeIngredientIndex !== null) {
+                currentRecipeIngredients[editingRecipeIngredientIndex] = ingredient;
+                editingRecipeIngredientIndex = null;
+                elements.addRecipeIngredientBtn.textContent = 'Aggiungi ingrediente';
+                elements.addRecipeIngredientBtn.classList.remove('bg-green-600');
+                elements.addRecipeIngredientBtn.classList.add('bg-blue-500');
+                elements.cancelRecipeIngredientEditBtn.classList.add('hidden');
+            } else {
+                currentRecipeIngredients.push(ingredient);
+            }
+
+            elements.recipeIngredientSelect.value = '';
+            elements.recipeIngredientQuantityInput.value = '';
+            elements.recipeIngredientUnitDisplay.value = '';
+            elements.recipeIngredientPricePerUnitDisplay.value = '';
+            
+            renderRecipeIngredientsList();
+            updateRecipeCost();
+        });
+        
+        elements.recipeForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const recipeName = elements.recipeNameInput.value.trim();
+            const totalCost = currentRecipeIngredients.reduce((sum, ing) => sum + parseFloat(ing.cost), 0);
+
+            if (currentRecipeIngredients.length === 0) {
+                showModal('Errore di input', 'Per favore, aggiungi almeno un ingrediente alla ricetta.');
+                return;
+            }
+
+            const recipeData = {
+                id: currentRecipeId || Date.now().toString(),
+                name: recipeName,
+                ingredients: currentRecipeIngredients,
+                totalCost: totalCost,
+                unit: 'kg',
+                isRecipe: true
+            };
+
+            if (currentRecipeId) {
+                const recipeIndex = allRecipes.findIndex(r => r.id === currentRecipeId);
+                if (recipeIndex !== -1) {
+                    allRecipes[recipeIndex] = recipeData;
+                }
+            } else {
+                allRecipes.push(recipeData);
+            }
+
+            saveToLocalStorage();
+            resetRecipeForm();
+            renderRecipesList();
+            populateIngredientSelects();
+        });
+
+        elements.cancelRecipeIngredientEditBtn.addEventListener('click', () => {
+            editingRecipeIngredientIndex = null;
+            elements.recipeIngredientSelect.value = '';
+            elements.recipeIngredientQuantityInput.value = '';
+            elements.recipeIngredientUnitDisplay.value = '';
+            elements.recipeIngredientPricePerUnitDisplay.value = '';
+            elements.addRecipeIngredientBtn.textContent = 'Aggiungi ingrediente';
+            elements.addRecipeIngredientBtn.classList.remove('bg-green-600');
+            elements.addRecipeIngredientBtn.classList.add('bg-blue-500');
+            elements.cancelRecipeIngredientEditBtn.classList.add('hidden');
+        });
+
+        function editRecipe(id) {
+            const recipeToEdit = allRecipes.find(recipe => recipe.id === id);
+            if (!recipeToEdit) return;
+
+            elements.recipeNameInput.value = recipeToEdit.name;
+            currentRecipeIngredients = [...recipeToEdit.ingredients];
+
+            renderRecipeIngredientsList();
+            updateRecipeCost();
+            
+            currentRecipeId = id;
+            elements.addRecipeBtn.textContent = 'Salva modifiche';
+            elements.addRecipeBtn.classList.remove('bg-blue-600');
+            elements.addRecipeBtn.classList.add('bg-green-600');
+            elements.cancelRecipeEditBtn.classList.remove('hidden');
+            elements.recipeNameInput.focus();
+        }
+
+        elements.cancelRecipeEditBtn.addEventListener('click', resetRecipeForm);
+        
+        function populateIngredientSelects() {
+            const dishSelect = elements.ingredientNameSelect;
+            dishSelect.innerHTML = '<option value="" disabled selected>Seleziona un ingrediente</option>';
+            allInventory.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.name;
+                option.textContent = item.name;
+                dishSelect.appendChild(option);
+            });
+            allRecipes.forEach(recipe => {
+                const option = document.createElement('option');
+                option.value = recipe.name;
+                option.textContent = `${recipe.name} (Ricetta)`;
+                dishSelect.appendChild(option);
+            });
+            
+            const recipeSelect = elements.recipeIngredientSelect;
+            recipeSelect.innerHTML = '<option value="" disabled selected>Seleziona un ingrediente</option>';
+            allInventory.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.name;
+                option.textContent = item.name;
+                recipeSelect.appendChild(option);
+            });
+
+            const wasteSelect = elements.wasteProductSelect;
+            const mealSelect = elements.mealProductSelect;
+            wasteSelect.innerHTML = '<option value="" disabled selected>Seleziona un prodotto, una ricetta o un piatto</option>';
+            mealSelect.innerHTML = '<option value="" disabled selected>Seleziona un prodotto, una ricetta o un piatto</option>';
+            
+            const allItems = [...allInventory, ...allRecipes, ...allDishes];
+            allItems.forEach(item => {
+                const name = item.name || item.dishName;
+                const optionText = item.isRecipe ? `${name} (Ricetta)` : (item.dishName ? `${name} (Piatto)` : name);
+                
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = optionText;
+                wasteSelect.appendChild(option);
+                
+                const option2 = document.createElement('option');
+                option2.value = name;
+                option2.textContent = optionText;
+                mealSelect.appendChild(option2);
+            });
+        }
+        
+        function updateWasteCost() {
+            const selectedName = elements.wasteProductSelect.value;
+            const quantity = parseFloat(elements.wasteQuantityInput.value);
+            const selectedItem = allInventory.find(item => item.name === selectedName) || allRecipes.find(item => item.name === selectedName) || allDishes.find(item => item.dishName === selectedName);
+            
+            if (selectedItem && !isNaN(quantity) && quantity > 0) {
+                const unitCost = selectedItem.totalCost ? selectedItem.totalCost : getAdjustedPricePerUnit(selectedItem);
+                const totalCost = unitCost * quantity;
+                elements.wasteCostDisplay.value = `€${totalCost.toFixed(2)}`;
+                elements.addWasteBtn.disabled = false;
+            } else {
+                elements.wasteCostDisplay.value = '';
+                elements.addWasteBtn.disabled = true;
+            }
+        }
+        
+        function renderWasteList() {
+            if (!elements.wasteList) return;
+            elements.wasteList.innerHTML = '';
+            
+            let totalWasteCost = 0;
+
+            if (allWaste.length === 0) {
+                elements.noWasteMessage.classList.remove('hidden');
+            } else {
+                elements.noWasteMessage.classList.add('hidden');
+                allWaste.forEach(waste => {
+                    const wasteItem = document.createElement('div');
+                    wasteItem.classList.add('bg-white', 'p-4', 'rounded-xl', 'shadow-md', 'space-y-4', 'border', 'border-gray-200');
+                    const formattedDate = new Date(waste.timestamp).toLocaleString();
+                    wasteItem.innerHTML = `
+                        <div class="flex justify-between items-center text-sm">
+                            <p class="font-medium text-gray-700">${waste.productName} (${waste.quantity} kg)</p>
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold text-red-600">€${Math.abs(waste.cost).toFixed(2)}</span>
+                                <button type="button" class="edit-waste-btn text-blue-500 hover:text-blue-700" data-id="${waste.id}"><i class="fas fa-pencil-alt"></i></button>
+                                <button type="button" class="remove-waste-btn text-red-500 hover:text-red-700" data-id="${waste.id}">&times;</button>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center text-xs text-gray-500">
+                            <p>Data: ${formattedDate}</p>
+                        </div>
+                    `;
+                    elements.wasteList.appendChild(wasteItem);
+                    totalWasteCost += Math.abs(waste.cost);
+                });
+                
+                elements.wasteList.querySelectorAll('.remove-waste-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        allWaste = allWaste.filter(w => w.id !== id);
+                        saveToLocalStorage();
+                        renderWasteList();
+                    });
+                });
+
+                elements.wasteList.querySelectorAll('.edit-waste-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        const wasteToEdit = allWaste.find(w => w.id === id);
+                        if (!wasteToEdit) return;
+
+                        elements.wasteProductSelect.value = wasteToEdit.productName;
+                        elements.wasteQuantityInput.value = wasteToEdit.quantity;
+                        updateWasteCost();
+                        currentWasteId = id;
+                        elements.addWasteBtn.textContent = 'Salva modifiche';
+                        elements.addWasteBtn.classList.remove('bg-blue-600');
+                        elements.addWasteBtn.classList.add('bg-green-600');
+                        elements.cancelWasteEditBtn.classList.remove('hidden');
+                    });
+                });
+            }
+            if (elements.totalWasteCostDisplay) elements.totalWasteCostDisplay.textContent = `€${totalWasteCost.toFixed(2)}`;
+        }
+        
+        elements.wasteForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const productName = elements.wasteProductSelect.value;
+            const quantity = parseFloat(elements.wasteQuantityInput.value);
+
+            if (!productName || isNaN(quantity) || quantity <= 0) {
+                showModal('Errore', 'Per favore, seleziona un prodotto e inserisci una quantità valida.');
+                return;
+            }
+
+            const selectedItem = allInventory.find(item => item.name === productName) || allRecipes.find(item => item.name === productName) || allDishes.find(item => item.dishName === productName);
+            const unitCost = selectedItem.totalCost ? selectedItem.totalCost : getAdjustedPricePerUnit(selectedItem);
+            const cost = unitCost * quantity;
+
+            const wasteItem = {
+                id: currentWasteId || Date.now().toString(),
+                productName,
+                quantity,
+                cost: cost,
+                timestamp: new Date().toISOString()
+            };
+
+            if (currentWasteId) {
+                const index = allWaste.findIndex(w => w.id === currentWasteId);
+                if (index !== -1) {
+                    allWaste[index] = wasteItem;
+                }
+            } else {
+                allWaste.push(wasteItem);
+            }
+
+            saveToLocalStorage();
+            resetWasteForm();
+            renderWasteList();
+        });
+
+        function resetWasteForm() {
+            elements.wasteForm.reset();
+            elements.wasteCostDisplay.value = '';
+            elements.addWasteBtn.disabled = true;
+            elements.addWasteBtn.textContent = 'Aggiungi Spreco';
+            elements.addWasteBtn.classList.remove('bg-green-600');
+            elements.addWasteBtn.classList.add('bg-blue-600');
+            elements.cancelWasteEditBtn.classList.add('hidden');
+            currentWasteId = null;
+        }
+
+        elements.wasteProductSelect.addEventListener('change', updateWasteCost);
+        elements.wasteQuantityInput.addEventListener('input', updateWasteCost);
+        elements.cancelWasteEditBtn.addEventListener('click', resetWasteForm);
+        
+        function updatePersonalMealCost() {
+            const selectedName = elements.mealProductSelect.value;
+            const quantity = parseFloat(elements.mealQuantityInput.value);
+            const selectedItem = allInventory.find(item => item.name === selectedName) || allRecipes.find(item => item.name === selectedName) || allDishes.find(item => item.dishName === selectedName);
+
+            if (selectedItem && !isNaN(quantity) && quantity > 0) {
+                const unitCost = selectedItem.totalCost ? selectedItem.totalCost : getAdjustedPricePerUnit(selectedItem);
+                const cost = unitCost * quantity;
+                elements.mealCostDisplay.value = `€${cost.toFixed(2)}`;
+                elements.addPersonalMealBtn.disabled = false;
+            } else {
+                elements.mealCostDisplay.value = '';
+                elements.addPersonalMealBtn.disabled = true;
+            }
+        }
+
+        function renderPersonalMealsList() {
+            if (!elements.personalMealsList) return;
+            elements.personalMealsList.innerHTML = '';
+
+            let totalPersonalMealCost = 0;
+            
+            if (allPersonalMeals.length === 0) {
+                elements.noPersonalMealsMessage.classList.remove('hidden');
+            } else {
+                elements.noPersonalMealsMessage.classList.add('hidden');
+                allPersonalMeals.forEach(meal => {
+                    const mealItem = document.createElement('div');
+                    mealItem.classList.add('bg-white', 'p-4', 'rounded-xl', 'shadow-md', 'space-y-4', 'border', 'border-gray-200');
+                    const formattedDate = new Date(meal.timestamp).toLocaleString();
+                    mealItem.innerHTML = `
+                        <div class="flex justify-between items-center text-sm">
+                            <p class="font-medium text-gray-700">${meal.productName} (${meal.quantity} kg)</p>
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold text-red-600">€${meal.cost.toFixed(2)}</span>
+                                <button type="button" class="edit-personal-meal-btn text-blue-500 hover:text-blue-700" data-id="${meal.id}"><i class="fas fa-pencil-alt"></i></button>
+                                <button type="button" class="remove-personal-meal-btn text-red-500 hover:text-red-700" data-id="${meal.id}">&times;</button>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center text-xs text-gray-500">
+                            <p>Utente: ${meal.username}</p>
+                            <p>Data: ${formattedDate}</p>
+                        </div>
+                    `;
+                    elements.personalMealsList.appendChild(mealItem);
+                    totalPersonalMealCost += meal.cost;
+                });
+
+                elements.personalMealsList.querySelectorAll('.remove-personal-meal-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        allPersonalMeals = allPersonalMeals.filter(m => m.id !== id);
+                        saveToLocalStorage();
+                        renderPersonalMealsList();
+                    });
+                });
+                elements.personalMealsList.querySelectorAll('.edit-personal-meal-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        const mealToEdit = allPersonalMeals.find(m => m.id === id);
+                        if (!mealToEdit) return;
+
+                        elements.mealProductSelect.value = mealToEdit.productName;
+                        elements.mealUsernameInput.value = mealToEdit.username;
+                        elements.mealQuantityInput.value = mealToEdit.quantity;
+                        updatePersonalMealCost();
+                        currentPersonalMealId = id;
+                        elements.addPersonalMealBtn.textContent = 'Salva modifiche';
+                        elements.addPersonalMealBtn.classList.remove('bg-blue-600');
+                        elements.addPersonalMealBtn.classList.add('bg-green-600');
+                        elements.cancelPersonalMealEditBtn.classList.remove('hidden');
+                    });
+                });
+            }
+            if (elements.totalPersonalMealsCostDisplay) elements.totalPersonalMealsCostDisplay.textContent = `€${totalPersonalMealCost.toFixed(2)}`;
+        }
+        
+        elements.personalMealForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const productName = elements.mealProductSelect.value;
+            const quantity = parseFloat(elements.mealQuantityInput.value);
+            const username = elements.mealUsernameInput.value.trim();
+
+            if (!productName || !username || isNaN(quantity) || quantity <= 0) {
+                showModal('Errore', 'Per favore, seleziona un prodotto, inserisci una quantità e un nome utente validi.');
+                return;
+            }
+            
+            const selectedItem = allInventory.find(item => item.name === productName) || allRecipes.find(item => item.name === productName) || allDishes.find(item => item.dishName === productName);
+            const unitCost = selectedItem.totalCost ? selectedItem.totalCost : getAdjustedPricePerUnit(selectedItem);
+            const cost = unitCost * quantity;
+
+            const personalMealItem = {
+                id: currentPersonalMealId || Date.now().toString(),
+                productName,
+                quantity,
+                cost,
+                username,
+                timestamp: new Date().toISOString()
+            };
+
+            if (currentPersonalMealId) {
+                const index = allPersonalMeals.findIndex(m => m.id === currentPersonalMealId);
+                if (index !== -1) {
+                    allPersonalMeals[index] = personalMealItem;
+                }
+            } else {
+                allPersonalMeals.push(personalMealItem);
+            }
+            
+            saveToLocalStorage();
+            resetPersonalMealForm();
+            renderPersonalMealsList();
+        });
+
+        function resetPersonalMealForm() {
+            elements.personalMealForm.reset();
+            elements.mealCostDisplay.value = '';
+            elements.addPersonalMealBtn.disabled = true;
+            elements.addPersonalMealBtn.textContent = 'Aggiungi Pasto Personale';
+            elements.addPersonalMealBtn.classList.remove('bg-green-600');
+            elements.addPersonalMealBtn.classList.add('bg-blue-600');
+            elements.cancelPersonalMealEditBtn.classList.add('hidden');
+            currentPersonalMealId = null;
+        }
+
+        elements.mealProductSelect.addEventListener('change', updatePersonalMealCost);
+        elements.mealQuantityInput.addEventListener('input', updatePersonalMealCost);
+        elements.cancelPersonalMealEditBtn.addEventListener('click', resetPersonalMealForm);
+
+        
+        // --- Event Listeners principali ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+            showTab('inventory-tab');
+            
+            elements.inventoryTabBtn.addEventListener('click', () => showTab('inventory-tab'));
+            elements.foodCostTabBtn.addEventListener('click', () => showTab('food-cost-tab'));
+            elements.wasteTabBtn.addEventListener('click', () => {
+                showTab('waste-tab');
+                renderWasteList();
+                renderPersonalMealsList();
+            });
+            elements.summaryTabBtn.addEventListener('click', () => {
+                showTab('summary-tab');
+                renderSummary();
+            });
+            elements.summaryFilterInput.addEventListener('input', renderSummary);
+            elements.summarySortSelect.addEventListener('change', renderSummary);
+            elements.summaryOrderSelect.addEventListener('change', renderSummary);
+            
+            elements.ingredientNameSelect.addEventListener('change', () => {
+                const selectedName = elements.ingredientNameSelect.value;
+                const selectedItem = allInventory.find(item => item.name === selectedName) || allRecipes.find(item => item.name === selectedName);
+                if (selectedItem) {
+                    elements.ingredientUnitDisplay.value = selectedItem.unit;
+                    elements.ingredientPricePerUnitDisplay.value = selectedItem.isRecipe ? selectedItem.totalCost : getAdjustedPricePerUnit(selectedItem);
+                    elements.ingredientPricePerUnitDisplay.placeholder = selectedItem.isRecipe ? 'Costo/Ricetta (€)' : 'Costo/Unità (netto sfrido) (€)';
+                }
+            });
+
+            elements.recipeIngredientSelect.addEventListener('change', () => {
+                const selectedName = elements.recipeIngredientSelect.value;
+                const selectedItem = allInventory.find(item => item.name === selectedName);
+                if (selectedItem) {
+                    elements.recipeIngredientUnitDisplay.value = selectedItem.unit;
+                    elements.recipeIngredientPricePerUnitDisplay.value = getAdjustedPricePerUnit(selectedItem);
+                }
+            });
+
+            // Funzione di esportazione PDF
+            elements.pdfExportBtn.addEventListener('click', () => {
+                const pdfContent = elements.pdfContent;
+                pdfContent.innerHTML = generatePdfContent();
+                
+                const options = {
+                    margin: [10, 10, 10, 10],
+                    filename: 'food-cost-report.pdf',
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2 },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                
+                html2pdf().from(pdfContent).set(options).save();
+            });
+        });
+
+        function generatePdfContent() {
+            let html = `
+                <div class="text-center font-bold text-lg mb-6">Food Cost Report - ${new Date().toLocaleDateString()}</div>
+                <hr class="mb-4">
+            `;
+            
+            // Sezione: Riepilogo Totale
+            html += `
+                <h2 class="text-md font-bold text-gray-800 mb-4">Riepilogo Totale</h2>
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <p>Costo Totale Materia Prima: <span class="font-bold text-red-600">€${elements.totalCostOfSalesEl.textContent.replace('€', '')}</span></p>
+                    <p>Food Cost Teorico Ponderato: <span class="font-bold text-green-800">${elements.finalFCEl.textContent}</span></p>
+                    <p>Ricavo Totale Lordo: <span class="font-bold text-blue-600">€${(allDishes.reduce((sum, dish) => sum + (dish.sellingPrice * (dish.hypotheticalSales || 0)), 0)).toFixed(2)}</span></p>
+                    <p>Ricavo Totale Netto: <span class="font-bold text-blue-600">€${(allDishes.reduce((sum, dish) => sum + ((dish.sellingPrice / 1.10) * (dish.hypotheticalSales || 0)), 0)).toFixed(2)}</span></p>
+                </div>
+                <hr class="my-4">
+            `;
+
+            // Sezione: Lista Materie Prime
+            html += `
+                <h2 class="text-md font-bold text-gray-800 mb-4">Lista Materie Prime</h2>
+                <ul class="space-y-2 mb-6">
+                    ${allInventory.map(item => `
+                        <li class="p-2 border rounded">
+                            <p class="font-bold">${item.name} (${item.quantity} ${item.unit})</p>
+                            <p class="text-sm">Costo/unità (lordo): €${item.pricePerUnit.toFixed(2)} | Sfrido: ${item.sfridoPercentage}%</p>
+                            <p class="text-sm">Costo/unità (netto sfrido): €${getAdjustedPricePerUnit(item).toFixed(2)} | Fornitore: ${item.supplier || 'N/A'}</p>
+                            ${item.notes ? `<p class="text-xs italic">Note: ${item.notes}</p>` : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+                <hr class="my-4">
+            `;
+            
+            // Sezione: Ricette Salvate
+            html += `
+                <h2 class="text-md font-bold text-gray-800 mb-4">Ricette Salvate</h2>
+                <ul class="space-y-2 mb-6">
+                    ${allRecipes.map(recipe => `
+                        <li class="p-2 border rounded">
+                            <p class="font-bold">${recipe.name} | Costo: €${recipe.totalCost.toFixed(2)}</p>
+                            <p class="text-sm">Ingredienti: ${recipe.ingredients.map(ing => `${ing.name} (${ing.quantity} ${ing.unit})`).join(', ')}</p>
+                        </li>
+                    `).join('')}
+                </ul>
+                <hr class="my-4">
+            `;
+            
+            // Sezione: Piatti Esistenti
+            html += `
+                <h2 class="text-md font-bold text-gray-800 mb-4">Piatti Esistenti</h2>
+                <ul class="space-y-2 mb-6">
+                    ${allDishes.map(dish => {
+                        const ingredients = JSON.parse(dish.ingredients);
+                        return `
+                            <li class="p-2 border rounded">
+                                <p class="font-bold">${dish.dishName} | Prezzo di vendita: €${dish.sellingPrice.toFixed(2)}</p>
+                                <p class="text-sm">Costo materie prime: €${dish.totalCost.toFixed(2)} | Vendite ipotetiche: ${dish.hypotheticalSales}</p>
+                                <p class="text-xs">Ingredienti: ${ingredients.map(ing => `${ing.name} (${ing.quantity} ${ing.unit})`).join(', ')}</p>
+                            </li>
+                        `;
+                    }).join('')}
+                </ul>
+                <hr class="my-4">
+            `;
+            
+            // Sezione: Sprechi Registrati
+            html += `
+                <h2 class="text-md font-bold text-gray-800 mb-4">Sprechi Registrati</h2>
+                <ul class="space-y-2 mb-6">
+                    ${allWaste.map(waste => `
+                        <li class="p-2 border rounded">
+                            <p class="font-bold">${waste.productName} | Quantità: ${waste.quantity} kg | Costo: €${waste.cost.toFixed(2)}</p>
+                            <p class="text-xs">Data: ${new Date(waste.timestamp).toLocaleString()}</p>
+                        </li>
+                    `).join('')}
+                </ul>
+                <p class="font-bold mt-2">Totale Sprechi: <span class="text-red-600">€${elements.totalWasteCostDisplay.textContent.replace('€', '')}</span></p>
+                <hr class="my-4">
+            `;
+            
+            // Sezione: Pasti Personali
+            html += `
+                <h2 class="text-md font-bold text-gray-800 mb-4">Pasti Personali</h2>
+                <ul class="space-y-2 mb-6">
+                    ${allPersonalMeals.map(meal => `
+                        <li class="p-2 border rounded">
+                            <p class="font-bold">${meal.productName} | Quantità: ${meal.quantity} kg | Costo: €${meal.cost.toFixed(2)}</p>
+                            <p class="text-xs">Utente: ${meal.username} | Data: ${new Date(meal.timestamp).toLocaleString()}</p>
+                        </li>
+                    `).join('')}
+                </ul>
+                <p class="font-bold mt-2">Totale Pasti Personali: <span class="text-red-600">€${elements.totalPersonalMealsCostDisplay.textContent.replace('€', '')}</span></p>
+            `;
+
+            return html;
+        }
+    </script>
+</body>
+</html>

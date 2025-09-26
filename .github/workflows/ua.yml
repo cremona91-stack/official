@@ -1,0 +1,45 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build web assets
+      run: npm run build
+    
+    - name: Debug - Check icon files before sync
+      run: |
+        echo "=== Checking adaptive icon XML files ==="
+        cat android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml || echo "ic_launcher.xml not found"
+        cat android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml || echo "ic_launcher_round.xml not found"
+        echo "=== Checking drawable resources ==="
+        ls -la android/app/src/main/res
