@@ -1,0 +1,66 @@
+name: Build FoodyFlow Android APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Setup Java 21 (Temurin)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: Install Node dependencies
+      run: npm ci
+    
+    - name: Build web assets for APK
+      run: npm run build
+      env:
+        VITE_API_BASE_URL: 'https://4c35f97f-bdbc-4e1d-a2d8-ab466b59fd98-00-2svlf2p3bw1f8.riker.replit.dev'
+    
+    - name: Sync Capacitor with Android
+      run: npx cap sync android
+    
+    - name: Grant execute permission for gradlew
+      run: chmod +x android/gradlew
+    
+    - name: Build debug APK
+      run: |
+        cd android
+        ./gradlew assembleDebug --no-daemon --stacktrace
+      env:
+        GRADLE_OPTS: -Xmx4096m -Dorg.gradle.daemon=false
+    
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: foodyflow-android-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 30
+    
+    - name: APK Build Summary
+      run: |
+        echo "✅ FoodyFlow APK build completed successfully!"
+        echo "📱 APK location: android/app/build/outputs/apk/debug/app-debug.apk"
+        echo "🎯 Target: Simplified FoodyFlow without authentication"
+        ls -la android/app/build/outputs/apk/debug/ || echo "APK directory not found"
